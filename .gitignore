@@ -1,0 +1,14 @@
+# Binaries
+kiara
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Telegram session files
+*.session
+*.session-journal
+*.session*
+
+# Local environment file
+.env

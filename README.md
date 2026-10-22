@@ -2,7 +2,7 @@
 
 A high-performance, mature Telegram AI chatbot built with **Golang** and **gogram** (`github.com/amarnathcjd/gogram`).
 
-Powered by Google's flagship **Gemini 4 Argon** (`argon-4`) model via `unified-web2api`, running the realistic **Gen Z "Kiara"** persona (sassy, human, low emojis, playful nakhre, and smart common sense).
+Powered by Google's flagship **Gemini 4 Argon** (`argon-4`) model via `unified-web2api`, running the realistic 466-line **Gen Z "Kiara"** persona (sassy, human, low emojis, playful nakhre, and smart common sense).
 
 ---
 
@@ -14,16 +14,21 @@ Powered by Google's flagship **Gemini 4 Argon** (`argon-4`) model via `unified-w
     * Tagged via `@BotUsername`
     * Replied to bot's messages
     * Triggered by name (`kiara` or `kia`)
-* **Dynamic Model Switching:**
-  * Switch models live using `/model <name>` (e.g. `/model argon-4`, `/model gpt-4o`, `/model deepseek-chat`).
-  * Check all models with `/models`.
+* **Interactive Inline Model Selector & Pagination:**
+  * Interactive inline keyboard with **`[◀️ Prev]`** and **`[Next ▶️]`** buttons.
+  * Active indicator **`[✅ ActiveModel]`** for the currently running AI model.
+  * **⚡ Thinking Depth Cycle Button:** Toggle between `LOW`, `MEDIUM`, `HIGH`, and `OFF` directly from Telegram inline buttons!
+  * Support for 12+ models (Gemini 4 Argon, Gemini 3.1 Pro, DeepSeek V3, DeepSeek R1, GPT-4o, Claude 3.5 Sonnet, Grok 3, etc.).
+* **🎨 AI Image Generation:**
+  * `/imagine <prompt>` or `/draw <prompt>` to generate images via `unified-web2api` (`/v1/images/generations`).
+  * Shows Telegram `upload_photo` status action and attaches high-res photo.
 * **Stateful Chat Memory:**
   * Thread-safe (`sync.RWMutex`) per-chat history.
   * Automatic pruning of older turns to avoid context overflow.
   * Automatic TTL cleanup for inactive chats.
   * Reset memory anytime with `/clear`.
 * **Live "Typing..." Action:**
-  * Emits Telegram `typing` action while waiting for AI generation.
+  * Emits Telegram `typing` action pulse while waiting for AI generation.
 * **Hot-Reload System Prompt:**
   * Edit `system_prompt.txt` on disk and run `/reload` to update personality without restarting the bot.
 
@@ -58,8 +63,36 @@ go build -o kiara cmd/bot/main.go
 | :--- | :--- |
 | `/start` | Welcome message from Kiara |
 | `/help` | Show command list & group trigger rules |
-| `/models` | List all available AI models |
-| `/model <name>` | Change model for current chat (e.g. `/model argon-4`) |
+| `/models` | Open interactive **Inline Buttons** menu with pagination & think toggle |
+| `/model <name>` | Change model directly via text or open inline menu if empty |
+| `/imagine <prompt>` | Generate AI images (`/draw` also works) |
 | `/clear` | Clear chat history & reset memory |
-| `/status` | View active model & memory stats |
+| `/status` | View active model, thinking depth & memory stats |
 | `/reload` | Reload `system_prompt.txt` from disk (Admin) |
+
+---
+
+## 📁 Repository Structure
+
+```
+kiara-chatbot/
+├── .env                  # Configuration & Bot credentials
+├── .env.example          # Sample environment variables
+├── .gitignore            # Git ignore for binary & session tokens
+├── README.md             # Documentation
+├── go.mod / go.sum       # Go module dependencies (gogram)
+├── system_prompt.txt     # 466-line Gen Z Kiara persona definition
+├── cmd/
+│   └── bot/
+│       └── main.go       # Entry point & handler registration
+└── internal/
+    ├── ai/
+    │   └── client.go     # Resilient AI client (chat + image generation)
+    ├── config/
+    │   └── config.go     # Environment loader
+    ├── handlers/
+    │   ├── bot.go        # DM/GC message triggers & typing pulse
+    │   └── commands.go   # Inline keyboard pagination & bot commands
+    └── memory/
+        └── session.go    # Thread-safe per-chat session & memory store
+```

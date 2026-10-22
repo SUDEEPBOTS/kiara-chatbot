@@ -10,6 +10,7 @@ import (
 type Session struct {
 	ChatID     int64
 	Model      string
+	ThinkLevel string
 	History    []ai.Message
 	LastActive time.Time
 }
@@ -74,6 +75,35 @@ func (s *Store) GetModel(chatID int64, defaultModel string) string {
 		return sess.Model
 	}
 	return defaultModel
+}
+
+func (s *Store) GetThink(chatID int64, defaultThink string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if sess, exists := s.sessions[chatID]; exists && sess.ThinkLevel != "" {
+		return sess.ThinkLevel
+	}
+	return defaultThink
+}
+
+func (s *Store) SetThink(chatID int64, thinkLevel string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sess, exists := s.sessions[chatID]
+	if !exists {
+		sess = &Session{
+			ChatID:     chatID,
+			ThinkLevel: thinkLevel,
+			History:    make([]ai.Message, 0),
+			LastActive: time.Now(),
+		}
+		s.sessions[chatID] = sess
+		return
+	}
+	sess.ThinkLevel = thinkLevel
+	sess.LastActive = time.Now()
 }
 
 func (s *Store) SetModel(chatID int64, model string, defaultModel string) {

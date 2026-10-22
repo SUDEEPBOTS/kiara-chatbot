@@ -97,3 +97,77 @@ func (c *Client) GenerateReply(model string, messages []Message) (string, error)
 
 	return chatResp.Choices[0].Message.Content, nil
 }
+
+type ImageGenRequest struct {
+	Prompt string `json:"prompt"`
+	N      int    `json:"n,omitempty"`
+	Size   string `json:"size,omitempty"`
+}
+
+type ImageGenResponse struct {
+	Data []struct {
+		URL string `json:"url"`
+	} `json:"data"`
+	Error *struct {
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
+}
+
+func (c *Client) GenerateImage(prompt string) (string, error) {
+	imgURL := c.apiURL
+	// Replace /chat/completions with /images/generations
+	if len(imgURL) > 17 && imgURL[len(imgURL)-17:] == "/chat/completions" {
+		imgURL = imgURL[:len(imgURL)-17] + "/images/generations"
+	}
+
+	reqBody := ImageGenRequest{
+		Prompt: prompt,
+		N:      1,
+		Size:   "1024x1024",
+	}
+
+	jsonBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode image request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", imgURL, bytes.NewReader(jsonBytes))
+	if err != nil {
+		return "", fmt.Errorf("failed to create image request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("image api request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read image response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("image api returned status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var imgResp ImageGenResponse
+	if err := json.Unmarshal(bodyBytes, &imgResp); err != nil {
+		return "", fmt.Errorf("failed to parse image response: %w", err)
+	}
+
+	if imgResp.Error != nil && imgResp.Error.Message != "" {
+		return "", fmt.Errorf("image api error: %s", imgResp.Error.Message)
+	}
+
+	if len(imgResp.Data) == 0 || imgResp.Data[0].URL == "" {
+		return "", fmt.Errorf("no image url returned")
+	}
+
+	return imgResp.Data[0].URL, nil
+}

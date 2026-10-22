@@ -59,6 +59,11 @@ func main() {
 		client.AddCommandHandler("clear", bh.HandleClear)
 		client.AddCommandHandler("status", bh.HandleStatus)
 		client.AddCommandHandler("reload", bh.HandleReload)
+		client.AddCommandHandler("imagine", bh.HandleImagine)
+		client.AddCommandHandler("draw", bh.HandleImagine)
+
+		// Register callback query handler for inline button pagination & settings
+		client.AddCallbackHandler("", bh.HandleCallback)
 
 		// Register global message listener for DM and GC mentions/replies
 		client.AddMessageHandler("", bh.HandleIncomingMessage)
