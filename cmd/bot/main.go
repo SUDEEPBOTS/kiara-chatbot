@@ -13,6 +13,7 @@ import (
 	"kiara-chatbot/internal/config"
 	"kiara-chatbot/internal/handlers"
 	"kiara-chatbot/internal/memory"
+	"kiara-chatbot/internal/moderation"
 	"kiara-chatbot/internal/ratelimit"
 	"kiara-chatbot/internal/stickers"
 )
@@ -34,6 +35,9 @@ func main() {
 
 	// Dynamic Sticker Pool for saving and sending Telegram stickers
 	stickersPool := stickers.NewPool("data/stickers_pool.json")
+
+	// Auto-Moderation Profanity Filter (dots, unicode fonts, leetspeak, fuzzy matching)
+	modFilter := moderation.NewFilter(cfg.AbuseFilePath, cfg.AbuseRemoteURL)
 
 	client, err := telegram.NewClient(telegram.ClientConfig{
 		AppID:     cfg.AppID,
@@ -58,7 +62,7 @@ func main() {
 
 		log.Printf("[SUCCESS] Logged in as @%s (ID: %d)", me.Username, me.ID)
 
-		bh := handlers.NewBotHandler(client, aiClient, memStore, cfg, me, limiter, stickersPool)
+		bh := handlers.NewBotHandler(client, aiClient, memStore, cfg, me, limiter, stickersPool, modFilter)
 
 		// Register command handlers
 		client.AddCommandHandler("start", bh.HandleStart)

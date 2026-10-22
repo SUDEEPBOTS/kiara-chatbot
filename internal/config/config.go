@@ -21,6 +21,8 @@ type Config struct {
 	MaxHistory       int
 	OwnerID          int64
 	LogLevel         string
+	AbuseFilePath    string
+	AbuseRemoteURL   string
 }
 
 func getEnv(key, defaultVal string) string {
@@ -50,6 +52,8 @@ func Load() *Config {
 		MaxHistory:       maxHistoryInt,
 		OwnerID:          ownerIDInt,
 		LogLevel:         getEnv("LOG_LEVEL", "INFO"),
+		AbuseFilePath:    getEnv("ABUSE_FILE_PATH", "abouse.txt"),
+		AbuseRemoteURL:   getEnv("ABUSE_REMOTE_URL", ""),
 	}
 
 	if cfg.BotToken == "" {

@@ -1,0 +1,36 @@
+# ====================================================
+# Kiara Auto-Moderation Blocklist (abouse.txt)
+# Add one abusive word, phrase, or stem per line.
+# Normalizer automatically handles:
+#   - Dots & separators (e.g. f.u.c.k, f_u_c_k)
+#   - Unicode fonts & math symbols (𝓯𝓾𝓬𝓴, ｆｕｃｋ)
+#   - Leetspeak substitutions (@ -> a, 0 -> o, 1 -> i, 3 -> e)
+#   - Repeated letters (fuuuuck -> fuck)
+#   - Minor typos (Levenshtein distance <= 1)
+# ====================================================
+
+# Common English / Hinglish Profanities
+fuck
+fck
+fuk
+bitch
+bastard
+asshole
+
+# Common Hindi / Hinglish Words
+kamina
+kamine
+kutti
+kutte
+harami
+haramkhor
+chirkut
+gadha
+
+# Common Punjabi Words
+kanjar
+kuta
+kutti
+bhadwa
+khota
+ullu

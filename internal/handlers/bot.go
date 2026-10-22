@@ -16,6 +16,7 @@ import (
 	"kiara-chatbot/internal/config"
 	"kiara-chatbot/internal/media"
 	"kiara-chatbot/internal/memory"
+	"kiara-chatbot/internal/moderation"
 	"kiara-chatbot/internal/ratelimit"
 	"kiara-chatbot/internal/stickers"
 )
@@ -29,6 +30,7 @@ type BotHandler struct {
 	systemPrompt string
 	limiter      *ratelimit.LeakyBucket
 	stickers     *stickers.Pool
+	modFilter    *moderation.Filter
 	mu           sync.RWMutex
 }
 
@@ -40,15 +42,17 @@ func NewBotHandler(
 	botUser *telegram.UserObj,
 	limiter *ratelimit.LeakyBucket,
 	stickersPool *stickers.Pool,
+	modFilter *moderation.Filter,
 ) *BotHandler {
 	bh := &BotHandler{
-		client:   client,
-		ai:       aiClient,
-		memory:   memStore,
-		cfg:      cfg,
-		botUser:  botUser,
-		limiter:  limiter,
-		stickers: stickersPool,
+		client:    client,
+		ai:        aiClient,
+		memory:    memStore,
+		cfg:       cfg,
+		botUser:   botUser,
+		limiter:   limiter,
+		stickers:  stickersPool,
+		modFilter: modFilter,
 	}
 	bh.ReloadSystemPrompt()
 	return bh
@@ -167,6 +171,11 @@ func (b *BotHandler) ShouldRespond(m *telegram.NewMessage) (bool, string, bool) 
 
 // HandleIncomingMessage is the master message listener
 func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
+	// 0. Auto-moderation check: Delete abusive messages in groups & issue self-destructing blockquote warning
+	if b.modFilter != nil && b.modFilter.ModerateMessage(m) {
+		return nil
+	}
+
 	// 1. Auto-collect incoming stickers into sticker pool
 	if sticker := m.Sticker(); sticker != nil {
 		b.stickers.Add(sticker, m.SenderID())
