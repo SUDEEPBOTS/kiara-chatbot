@@ -28,9 +28,6 @@ package main
 
 import (
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/amarnathcjd/gogram/telegram"
@@ -100,13 +97,10 @@ func main() {
 		client.AddMessageHandler("", bh.HandleIncomingMessage)
 
 		log.Println("[INFO] Kiara Chatbot is now active and listening for messages!")
+		client.Idle()
 	} else {
 		log.Println("[INFO] Bot compiled successfully. Add BOT_TOKEN in .env and start the binary.")
 	}
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	<-sigChan
 
 	log.Println("[INFO] Shutting down Kiara Chatbot gracefully...")
 }
