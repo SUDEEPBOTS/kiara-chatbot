@@ -77,7 +77,7 @@ func Load() *Config {
 		AiAPIKey:         getEnv("AI_API_KEY", "sudeepbots"),
 		GroqAPIKey:       getEnv("GROQ_API_KEY", ""),
 		GeminiAPIKey:     getEnv("GEMINI_API_KEY", ""),
-		DefaultModel:     getEnv("DEFAULT_MODEL", "argon-4@think=low"),
+		DefaultModel:     getEnv("DEFAULT_MODEL", "deepseek-v3"),
 		SystemPromptPath: getEnv("SYSTEM_PROMPT_PATH", "system_prompt.txt"),
 		BotName:          strings.ToLower(getEnv("BOT_NAME", "kiara")),
 		MaxHistory:       maxHistoryInt,
