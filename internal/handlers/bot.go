@@ -57,6 +57,8 @@ type BotHandler struct {
 	limiter      *ratelimit.LeakyBucket
 	stickers     *stickers.Pool
 	modFilter    *moderation.Filter
+	botMsgCache  map[string]time.Time
+	activeUsers  map[string]time.Time
 	mu           sync.RWMutex
 }
 
@@ -71,17 +73,73 @@ func NewBotHandler(
 	modFilter *moderation.Filter,
 ) *BotHandler {
 	bh := &BotHandler{
-		client:    client,
-		ai:        aiClient,
-		memory:    memStore,
-		cfg:       cfg,
-		botUser:   botUser,
-		limiter:   limiter,
-		stickers:  stickersPool,
-		modFilter: modFilter,
+		client:      client,
+		ai:          aiClient,
+		memory:      memStore,
+		cfg:         cfg,
+		botUser:     botUser,
+		limiter:     limiter,
+		stickers:    stickersPool,
+		modFilter:   modFilter,
+		botMsgCache: make(map[string]time.Time),
+		activeUsers: make(map[string]time.Time),
 	}
 	bh.ReloadSystemPrompt()
 	return bh
+}
+
+func (b *BotHandler) cacheBotMsg(chatID int64, msgID int32) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.botMsgCache == nil {
+		b.botMsgCache = make(map[string]time.Time)
+	}
+	key := fmt.Sprintf("%d:%d", chatID, msgID)
+	b.botMsgCache[key] = time.Now()
+
+	if len(b.botMsgCache) > 2000 {
+		cutoff := time.Now().Add(-2 * time.Hour)
+		for k, t := range b.botMsgCache {
+			if t.Before(cutoff) {
+				delete(b.botMsgCache, k)
+			}
+		}
+	}
+}
+
+func (b *BotHandler) isBotMsg(chatID int64, msgID int32) bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.botMsgCache == nil {
+		return false
+	}
+	key := fmt.Sprintf("%d:%d", chatID, msgID)
+	_, ok := b.botMsgCache[key]
+	return ok
+}
+
+func (b *BotHandler) recordUserInteraction(chatID, senderID int64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.activeUsers == nil {
+		b.activeUsers = make(map[string]time.Time)
+	}
+	key := fmt.Sprintf("%d:%d", chatID, senderID)
+	b.activeUsers[key] = time.Now()
+}
+
+func (b *BotHandler) isUserInActiveWindow(chatID, senderID int64) bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.activeUsers == nil {
+		return false
+	}
+	key := fmt.Sprintf("%d:%d", chatID, senderID)
+	lastTime, ok := b.activeUsers[key]
+	if !ok {
+		return false
+	}
+	return time.Since(lastTime) <= 60*time.Second
 }
 
 func (b *BotHandler) ReloadSystemPrompt() error {
@@ -177,6 +235,23 @@ func (b *BotHandler) ShouldRespond(m *telegram.NewMessage) (bool, string, bool) 
 		return true, text, hasMedia
 	}
 
+	isGroup := !m.IsPrivate()
+
+	if m.IsReply() && b.botUser != nil {
+		if m.ReplySenderID() == b.botUser.ID {
+			return true, text, hasMedia
+		}
+		if b.isBotMsg(m.ChatID(), m.ReplyToMsgID()) {
+			return true, text, hasMedia
+		}
+		if replyMsg, err := m.GetReplyMessage(); err == nil && replyMsg != nil {
+			if replyMsg.SenderID() == b.botUser.ID {
+				b.cacheBotMsg(m.ChatID(), replyMsg.ID)
+				return true, text, hasMedia
+			}
+		}
+	}
+
 	botUsername := ""
 	if b.botUser != nil {
 		botUsername = strings.ToLower(b.botUser.Username)
@@ -190,12 +265,6 @@ func (b *BotHandler) ShouldRespond(m *telegram.NewMessage) (bool, string, bool) 
 		return true, cleanText, hasMedia
 	}
 
-	if m.IsReply() && b.botUser != nil {
-		if m.ReplySenderID() == b.botUser.ID {
-			return true, text, hasMedia
-		}
-	}
-
 	namePattern := regexp.MustCompile(`(?i)\b(kiara|kia)\b`)
 	if namePattern.MatchString(text) {
 		cleanText := strings.TrimSpace(namePattern.ReplaceAllString(text, ""))
@@ -203,6 +272,10 @@ func (b *BotHandler) ShouldRespond(m *telegram.NewMessage) (bool, string, bool) 
 			cleanText = text
 		}
 		return true, cleanText, hasMedia
+	}
+
+	if isGroup && b.isUserInActiveWindow(m.ChatID(), m.SenderID()) {
+		return true, text, hasMedia
 	}
 
 	return false, "", false
@@ -236,6 +309,9 @@ func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
 	senderID := m.SenderID()
 	isGroup := !m.IsPrivate()
 	sessKey := memory.SessionKey(chatID, senderID, isGroup)
+
+	b.recordUserInteraction(chatID, senderID)
+	log.Printf("[MESSAGE] Chat: %d | Sender: %d | IsGroup: %v | Prompt: %q", chatID, senderID, isGroup, prompt)
 
 	if !hasMedia {
 		isImageReq, imgPrompt := ExtractImagePrompt(prompt)
@@ -366,9 +442,12 @@ func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
 		b.memory.AddTurn(sessKey, memoryUserSummary, cleanReply, b.cfg.DefaultModel)
 
 		if cleanReply != "" {
-			_, err = m.Reply(cleanReply)
+			sentMsg, err := m.Reply(cleanReply)
 			if err != nil {
 				log.Printf("[ERROR] Failed to send reply to %s: %v", sessKey, err)
+			} else if sentMsg != nil {
+				b.cacheBotMsg(chatID, sentMsg.ID)
+				log.Printf("[REPLY] Chat: %d | MsgID: %d | Text: %q", chatID, sentMsg.ID, cleanReply)
 			}
 		}
 	}()
