@@ -265,7 +265,7 @@ func (b *BotHandler) ShouldRespond(m *telegram.NewMessage) (bool, string, bool) 
 		return true, cleanText, hasMedia
 	}
 
-	namePattern := regexp.MustCompile(`(?i)\b(kiara|kia)\b`)
+	namePattern := regexp.MustCompile(`(?i)\b(kiara|kaira|kira|kia|kyara|kyaara|kiarra|kiyara|kayra|keera)\b`)
 	if namePattern.MatchString(text) {
 		cleanText := strings.TrimSpace(namePattern.ReplaceAllString(text, ""))
 		if cleanText == "" {
