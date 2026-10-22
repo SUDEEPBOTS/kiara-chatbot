@@ -1,7 +1,7 @@
 # Kiara Chatbot
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/SUDEEPBOTS/kiara-chatbot/master/.github/assets/banner.png" alt="Kiara Chatbot Banner" width="100%" onerror="this.style.display='none'"/>
+  <img src=".github/assets/banner.png" alt="Kiara Chatbot Banner" width="100%"/>
 </p>
 
 <p align="center">
