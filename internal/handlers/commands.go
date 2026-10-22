@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/amarnathcjd/gogram/telegram"
+	"kiara-chatbot/internal/memory"
 )
 
 type ModelItem struct {
@@ -31,8 +32,8 @@ var ModelCatalog = []ModelItem{
 
 const PageSize = 4
 
-// RenderModelsPage generates the text and inline keyboard for a specific page
-func (b *BotHandler) RenderModelsPage(chatID int64, page int) (string, *telegram.ReplyInlineMarkup) {
+// RenderModelsPage generates the text and inline keyboard for a specific page and session
+func (b *BotHandler) RenderModelsPage(sessKey string, page int) (string, *telegram.ReplyInlineMarkup) {
 	totalModels := len(ModelCatalog)
 	totalPages := (totalModels + PageSize - 1) / PageSize
 
@@ -43,8 +44,8 @@ func (b *BotHandler) RenderModelsPage(chatID int64, page int) (string, *telegram
 		page = totalPages - 1
 	}
 
-	currentModel := b.memory.GetModel(chatID, b.cfg.DefaultModel)
-	currentThink := b.memory.GetThink(chatID, "low")
+	currentModel := b.memory.GetModel(sessKey, b.cfg.DefaultModel)
+	currentThink := b.memory.GetThink(sessKey, "low")
 
 	start := page * PageSize
 	end := start + PageSize
@@ -139,7 +140,8 @@ func (b *BotHandler) HandleHelp(m *telegram.NewMessage) error {
 
 // HandleModels opens the paginated interactive inline keyboard
 func (b *BotHandler) HandleModels(m *telegram.NewMessage) error {
-	text, markup := b.RenderModelsPage(m.ChatID(), 0)
+	sessKey := memory.SessionKey(m.ChatID(), m.SenderID(), !m.IsPrivate())
+	text, markup := b.RenderModelsPage(sessKey, 0)
 	_, err := m.Reply(text, &telegram.SendOptions{ReplyMarkup: markup})
 	return err
 }
@@ -148,27 +150,27 @@ func (b *BotHandler) HandleModels(m *telegram.NewMessage) error {
 func (b *BotHandler) HandleModel(m *telegram.NewMessage) error {
 	args := strings.TrimSpace(m.Args())
 	if args == "" {
-		// If no argument, open the inline buttons menu!
 		return b.HandleModels(m)
 	}
 
+	sessKey := memory.SessionKey(m.ChatID(), m.SenderID(), !m.IsPrivate())
 	targetModel := strings.ToLower(args)
-	think := b.memory.GetThink(m.ChatID(), "low")
+	think := b.memory.GetThink(sessKey, "low")
 
 	// If it's an argon/gemini model and doesn't specify thinking, append current think level
 	if (strings.Contains(targetModel, "argon") || strings.Contains(targetModel, "gemini")) && !strings.Contains(targetModel, "@think=") {
 		targetModel = fmt.Sprintf("%s@think=%s", targetModel, think)
 	}
 
-	b.memory.SetModel(m.ChatID(), targetModel, b.cfg.DefaultModel)
-	_, err := m.Reply(fmt.Sprintf("✔ Switched model to <code>%s</code> for this chat!", targetModel))
+	b.memory.SetModel(sessKey, targetModel, b.cfg.DefaultModel)
+	_, err := m.Reply(fmt.Sprintf("✔ Switched model to <code>%s</code> for your session!", targetModel))
 	return err
 }
 
 // HandleCallback processes button clicks from inline keyboards
 func (b *BotHandler) HandleCallback(cb *telegram.CallbackQuery) error {
 	data := cb.DataString()
-	chatID := cb.GetChatID()
+	sessKey := memory.SessionKey(cb.GetChatID(), cb.GetSenderID(), !cb.IsPrivate())
 
 	if data == "noop" {
 		_, err := cb.Answer("")
@@ -185,7 +187,7 @@ func (b *BotHandler) HandleCallback(cb *telegram.CallbackQuery) error {
 	if strings.HasPrefix(data, "page:") {
 		pageNum, err := strconv.Atoi(strings.TrimPrefix(data, "page:"))
 		if err == nil {
-			text, markup := b.RenderModelsPage(chatID, pageNum)
+			text, markup := b.RenderModelsPage(sessKey, pageNum)
 			_, _ = cb.Edit(text, &telegram.SendOptions{ReplyMarkup: markup})
 		}
 		_, err = cb.Answer("")
@@ -199,16 +201,16 @@ func (b *BotHandler) HandleCallback(cb *telegram.CallbackQuery) error {
 			modelID := parts[1]
 			pageNum, _ := strconv.Atoi(parts[2])
 
-			think := b.memory.GetThink(chatID, "low")
+			think := b.memory.GetThink(sessKey, "low")
 			fullModel := modelID
 			if (strings.Contains(modelID, "argon") || strings.Contains(modelID, "gemini")) && !strings.Contains(modelID, "@think=") {
 				fullModel = fmt.Sprintf("%s@think=%s", modelID, think)
 			}
 
-			b.memory.SetModel(chatID, fullModel, b.cfg.DefaultModel)
+			b.memory.SetModel(sessKey, fullModel, b.cfg.DefaultModel)
 			_, _ = cb.Answer(fmt.Sprintf("✔ Model switched to: %s", modelID))
 
-			text, markup := b.RenderModelsPage(chatID, pageNum)
+			text, markup := b.RenderModelsPage(sessKey, pageNum)
 			_, err := cb.Edit(text, &telegram.SendOptions{ReplyMarkup: markup})
 			return err
 		}
@@ -217,7 +219,7 @@ func (b *BotHandler) HandleCallback(cb *telegram.CallbackQuery) error {
 	// 3. Thinking depth cycle: "think:<page>"
 	if strings.HasPrefix(data, "think:") {
 		pageNum, _ := strconv.Atoi(strings.TrimPrefix(data, "think:"))
-		currentThink := b.memory.GetThink(chatID, "low")
+		currentThink := b.memory.GetThink(sessKey, "low")
 
 		// Cycle: low -> medium -> high -> off -> low
 		nextThink := "medium"
@@ -234,18 +236,18 @@ func (b *BotHandler) HandleCallback(cb *telegram.CallbackQuery) error {
 			nextThink = "low"
 		}
 
-		b.memory.SetThink(chatID, nextThink)
+		b.memory.SetThink(sessKey, nextThink)
 
 		// Also update current model string if it's a gemini/argon model
-		curModel := b.memory.GetModel(chatID, b.cfg.DefaultModel)
+		curModel := b.memory.GetModel(sessKey, b.cfg.DefaultModel)
 		if idx := strings.Index(curModel, "@think="); idx != -1 {
 			curModel = curModel[:idx] + "@think=" + nextThink
-			b.memory.SetModel(chatID, curModel, b.cfg.DefaultModel)
+			b.memory.SetModel(sessKey, curModel, b.cfg.DefaultModel)
 		}
 
 		_, _ = cb.Answer(fmt.Sprintf("⚡ Thinking depth: %s", strings.ToUpper(nextThink)))
 
-		text, markup := b.RenderModelsPage(chatID, pageNum)
+		text, markup := b.RenderModelsPage(sessKey, pageNum)
 		_, err := cb.Edit(text, &telegram.SendOptions{ReplyMarkup: markup})
 		return err
 	}
@@ -284,23 +286,26 @@ func (b *BotHandler) HandleImagine(m *telegram.NewMessage) error {
 }
 
 func (b *BotHandler) HandleClear(m *telegram.NewMessage) error {
-	b.memory.Clear(m.ChatID())
+	sessKey := memory.SessionKey(m.ChatID(), m.SenderID(), !m.IsPrivate())
+	b.memory.Clear(sessKey)
 	_, err := m.Reply("chat memory cleared! clean slate. what's up? ✨")
 	return err
 }
 
 func (b *BotHandler) HandleStatus(m *telegram.NewMessage) error {
-	chatID := m.ChatID()
-	currentModel := b.memory.GetModel(chatID, b.cfg.DefaultModel)
-	currentThink := b.memory.GetThink(chatID, "low")
+	sessKey := memory.SessionKey(m.ChatID(), m.SenderID(), !m.IsPrivate())
+	currentModel := b.memory.GetModel(sessKey, b.cfg.DefaultModel)
+	currentThink := b.memory.GetThink(sessKey, "low")
 
 	status := fmt.Sprintf(`<b>✨ Kiara Chatbot Status ✨</b>
 • <b>Chat ID:</b> <code>%d</code>
+• <b>User ID:</b> <code>%d</code>
 • <b>Active Model:</b> <code>%s</code>
 • <b>Thinking Depth:</b> <code>%s</code>
-• <b>Total Active Chats:</b> <code>%d</code>
+• <b>Active Sessions:</b> <code>%d</code>
+• <b>Collected Stickers:</b> <code>%d</code>
 • <b>Persona:</b> Kiara (20, Bandra, Mumbai)`,
-		chatID, currentModel, strings.ToUpper(currentThink), b.memory.ActiveCount())
+		m.ChatID(), m.SenderID(), currentModel, strings.ToUpper(currentThink), b.memory.ActiveCount(), b.stickers.Count())
 
 	_, err := m.Reply(status)
 	return err

@@ -9,9 +9,19 @@ import (
 	"time"
 )
 
+type ContentPart struct {
+	Type     string         `json:"type"`
+	Text     string         `json:"text,omitempty"`
+	ImageURL *ImageURLField `json:"image_url,omitempty"`
+}
+
+type ImageURLField struct {
+	URL string `json:"url"`
+}
+
 type Message struct {
 	Role    string `json:"role"`
-	Content string `json:"content"`
+	Content any    `json:"content"`
 }
 
 type ChatRequest struct {
@@ -22,7 +32,10 @@ type ChatRequest struct {
 
 type ChatResponse struct {
 	Choices []struct {
-		Message Message `json:"message"`
+		Message struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"message"`
 	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`

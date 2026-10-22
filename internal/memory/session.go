@@ -1,14 +1,27 @@
 package memory
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
 	"kiara-chatbot/internal/ai"
 )
 
+// SessionKey computes a distinct key per user per chat context:
+// In DM: "dm_<userID>"
+// In GC: "gc_<chatID>_u_<userID>"
+func SessionKey(chatID int64, userID int64, isGroup bool) string {
+	if isGroup {
+		return fmt.Sprintf("gc_%d_u_%d", chatID, userID)
+	}
+	return fmt.Sprintf("dm_%d", userID)
+}
+
 type Session struct {
+	Key        string
 	ChatID     int64
+	UserID     int64
 	Model      string
 	ThinkLevel string
 	History    []ai.Message
@@ -17,14 +30,14 @@ type Session struct {
 
 type Store struct {
 	mu         sync.RWMutex
-	sessions   map[int64]*Session
+	sessions   map[string]*Session
 	maxHistory int
 	ttl        time.Duration
 }
 
 func NewStore(maxHistory int, ttl time.Duration) *Store {
 	s := &Store{
-		sessions:   make(map[int64]*Session),
+		sessions:   make(map[string]*Session),
 		maxHistory: maxHistory,
 		ttl:        ttl,
 	}
@@ -40,104 +53,104 @@ func (s *Store) cleanupLoop() {
 	for range ticker.C {
 		s.mu.Lock()
 		now := time.Now()
-		for id, sess := range s.sessions {
+		for key, sess := range s.sessions {
 			if now.Sub(sess.LastActive) > s.ttl {
-				delete(s.sessions, id)
+				delete(s.sessions, key)
 			}
 		}
 		s.mu.Unlock()
 	}
 }
 
-func (s *Store) GetOrCreate(chatID int64, defaultModel string) *Session {
+func (s *Store) GetOrCreate(key string, defaultModel string) *Session {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sess, exists := s.sessions[chatID]
+	sess, exists := s.sessions[key]
 	if !exists {
 		sess = &Session{
-			ChatID:     chatID,
+			Key:        key,
 			Model:      defaultModel,
 			History:    make([]ai.Message, 0),
 			LastActive: time.Now(),
 		}
-		s.sessions[chatID] = sess
+		s.sessions[key] = sess
 	}
 	sess.LastActive = time.Now()
 	return sess
 }
 
-func (s *Store) GetModel(chatID int64, defaultModel string) string {
+func (s *Store) GetModel(key string, defaultModel string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if sess, exists := s.sessions[chatID]; exists && sess.Model != "" {
+	if sess, exists := s.sessions[key]; exists && sess.Model != "" {
 		return sess.Model
 	}
 	return defaultModel
 }
 
-func (s *Store) GetThink(chatID int64, defaultThink string) string {
+func (s *Store) GetThink(key string, defaultThink string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if sess, exists := s.sessions[chatID]; exists && sess.ThinkLevel != "" {
+	if sess, exists := s.sessions[key]; exists && sess.ThinkLevel != "" {
 		return sess.ThinkLevel
 	}
 	return defaultThink
 }
 
-func (s *Store) SetThink(chatID int64, thinkLevel string) {
+func (s *Store) SetThink(key string, thinkLevel string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sess, exists := s.sessions[chatID]
+	sess, exists := s.sessions[key]
 	if !exists {
 		sess = &Session{
-			ChatID:     chatID,
+			Key:        key,
 			ThinkLevel: thinkLevel,
 			History:    make([]ai.Message, 0),
 			LastActive: time.Now(),
 		}
-		s.sessions[chatID] = sess
+		s.sessions[key] = sess
 		return
 	}
 	sess.ThinkLevel = thinkLevel
 	sess.LastActive = time.Now()
 }
 
-func (s *Store) SetModel(chatID int64, model string, defaultModel string) {
+func (s *Store) SetModel(key string, model string, defaultModel string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sess, exists := s.sessions[chatID]
+	sess, exists := s.sessions[key]
 	if !exists {
 		sess = &Session{
-			ChatID:     chatID,
+			Key:        key,
 			Model:      model,
 			History:    make([]ai.Message, 0),
 			LastActive: time.Now(),
 		}
-		s.sessions[chatID] = sess
+		s.sessions[key] = sess
 		return
 	}
 	sess.Model = model
 	sess.LastActive = time.Now()
 }
 
-func (s *Store) AddTurn(chatID int64, userMsg, botMsg string, defaultModel string) {
+func (s *Store) AddTurn(key string, userMsg, botMsg string, defaultModel string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sess, exists := s.sessions[chatID]
+	sess, exists := s.sessions[key]
 	if !exists {
 		sess = &Session{
-			ChatID:     chatID,
+			Key:        key,
 			Model:      defaultModel,
 			History:    make([]ai.Message, 0),
 			LastActive: time.Now(),
 		}
-		s.sessions[chatID] = sess
+		s.sessions[key] = sess
 	}
 
 	sess.History = append(sess.History,
@@ -154,7 +167,7 @@ func (s *Store) AddTurn(chatID int64, userMsg, botMsg string, defaultModel strin
 	sess.LastActive = time.Now()
 }
 
-func (s *Store) GetMessagesWithSystem(chatID int64, systemPrompt, defaultModel string) []ai.Message {
+func (s *Store) GetMessagesWithSystem(key string, systemPrompt, defaultModel string) []ai.Message {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -163,18 +176,18 @@ func (s *Store) GetMessagesWithSystem(chatID int64, systemPrompt, defaultModel s
 		msgs = append(msgs, ai.Message{Role: "system", Content: systemPrompt})
 	}
 
-	if sess, exists := s.sessions[chatID]; exists {
+	if sess, exists := s.sessions[key]; exists {
 		msgs = append(msgs, sess.History...)
 	}
 
 	return msgs
 }
 
-func (s *Store) Clear(chatID int64) {
+func (s *Store) Clear(key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if sess, exists := s.sessions[chatID]; exists {
+	if sess, exists := s.sessions[key]; exists {
 		sess.History = make([]ai.Message, 0)
 		sess.LastActive = time.Now()
 	}

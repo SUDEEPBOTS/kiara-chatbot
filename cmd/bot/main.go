@@ -13,6 +13,8 @@ import (
 	"kiara-chatbot/internal/config"
 	"kiara-chatbot/internal/handlers"
 	"kiara-chatbot/internal/memory"
+	"kiara-chatbot/internal/ratelimit"
+	"kiara-chatbot/internal/stickers"
 )
 
 func main() {
@@ -25,6 +27,13 @@ func main() {
 
 	aiClient := ai.NewClient(cfg.AiAPIURL, cfg.AiAPIKey)
 	memStore := memory.NewStore(cfg.MaxHistory, 2*time.Hour)
+
+	// Leaky Bucket Rate Limiter ("Baltti") to prevent sticker spam in DMs
+	// Burst capacity: 3 stickers, drain rate: 0.33 stickers/sec (1 per 3s), temporary block: 60s
+	limiter := ratelimit.NewLeakyBucket(3.0, 0.33, 60*time.Second)
+
+	// Dynamic Sticker Pool for saving and sending Telegram stickers
+	stickersPool := stickers.NewPool("data/stickers_pool.json")
 
 	client, err := telegram.NewClient(telegram.ClientConfig{
 		AppID:     cfg.AppID,
@@ -49,7 +58,7 @@ func main() {
 
 		log.Printf("[SUCCESS] Logged in as @%s (ID: %d)", me.Username, me.ID)
 
-		bh := handlers.NewBotHandler(client, aiClient, memStore, cfg, me)
+		bh := handlers.NewBotHandler(client, aiClient, memStore, cfg, me, limiter, stickersPool)
 
 		// Register command handlers
 		client.AddCommandHandler("start", bh.HandleStart)
