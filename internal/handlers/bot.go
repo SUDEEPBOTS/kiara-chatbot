@@ -250,19 +250,28 @@ func (b *BotHandler) ShouldRespond(m *telegram.NewMessage) (bool, string, bool) 
 
 	isGroup := !m.IsPrivate()
 
+	isReplyToBot := false
+	isReplyToSomeoneElse := false
+
 	if m.IsReply() && b.botUser != nil {
 		if m.ReplySenderID() == b.botUser.ID {
-			return true, text, hasMedia
-		}
-		if b.isBotMsg(m.ChatID(), m.ReplyToMsgID()) {
-			return true, text, hasMedia
-		}
-		if replyMsg, err := m.GetReplyMessage(); err == nil && replyMsg != nil {
+			isReplyToBot = true
+		} else if b.isBotMsg(m.ChatID(), m.ReplyToMsgID()) {
+			isReplyToBot = true
+		} else if replyMsg, err := m.GetReplyMessage(); err == nil && replyMsg != nil {
 			if replyMsg.SenderID() == b.botUser.ID {
 				b.cacheBotMsg(m.ChatID(), replyMsg.ID)
-				return true, text, hasMedia
+				isReplyToBot = true
+			} else {
+				isReplyToSomeoneElse = true
 			}
+		} else {
+			isReplyToSomeoneElse = true
 		}
+	}
+
+	if isReplyToBot {
+		return true, text, hasMedia
 	}
 
 	botUsername := ""
@@ -273,18 +282,29 @@ func (b *BotHandler) ShouldRespond(m *telegram.NewMessage) (bool, string, bool) 
 	lowerText := strings.ToLower(text)
 	botMention := "@" + botUsername
 
-	if botUsername != "" && strings.Contains(lowerText, botMention) {
+	hasMention := (botUsername != "" && strings.Contains(lowerText, botMention))
+	namePattern := regexp.MustCompile(`(?i)\b(kiara|kaira|kira|kia|kyara|kyaara|kiarra|kiyara|kayra|keera)\b`)
+	hasName := namePattern.MatchString(text)
+
+	if hasMention {
 		cleanText := strings.TrimSpace(strings.ReplaceAll(lowerText, botMention, ""))
 		return true, cleanText, hasMedia
 	}
 
-	namePattern := regexp.MustCompile(`(?i)\b(kiara|kaira|kira|kia|kyara|kyaara|kiarra|kiyara|kayra|keera)\b`)
-	if namePattern.MatchString(text) {
+	if hasName {
 		cleanText := strings.TrimSpace(namePattern.ReplaceAllString(text, ""))
 		if cleanText == "" {
 			cleanText = text
 		}
 		return true, cleanText, hasMedia
+	}
+
+	if isReplyToSomeoneElse {
+		return false, "", false
+	}
+
+	if m.Sticker() != nil {
+		return false, "", false
 	}
 
 	if isGroup && b.isUserInActiveWindow(m.ChatID(), m.SenderID()) {
