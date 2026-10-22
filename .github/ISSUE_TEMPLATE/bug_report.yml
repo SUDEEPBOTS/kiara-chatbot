@@ -1,0 +1,31 @@
+name: Bug Report
+description: Create a report to help us improve Kiara Chatbot
+title: "[BUG]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue!
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear and concise description of what the bug is.
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS version, Go version, deployment target (Docker/Local/Render/Heroku).
+      placeholder: Linux Ubuntu 24.04 / Go 1.24 / Docker
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Please copy and paste any relevant terminal log output.
+      render: shell

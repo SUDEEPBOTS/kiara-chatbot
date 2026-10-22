@@ -1,0 +1,19 @@
+services:
+  kiara-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kiara_telegram_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./kiara_bot.session:/app/kiara_bot.session
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

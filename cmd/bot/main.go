@@ -19,7 +19,9 @@ import (
 )
 
 func main() {
-	log.Println("[INFO] Starting Kiara Chatbot...")
+	// Configure professional UTC timestamp logging with zero emojis
+	log.SetFlags(log.Ldate | log.Ltime | log.LUTC)
+	log.Println("[INFO] Starting Kiara Chatbot service...")
 
 	cfg := config.Load()
 	if cfg.BotToken == "" {

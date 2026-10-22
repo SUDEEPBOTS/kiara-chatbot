@@ -1,0 +1,32 @@
+services:
+  - type: worker
+    name: kiara-telegram-bot
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: API_ID
+        sync: false
+      - key: API_HASH
+        sync: false
+      - key: AI_API_URL
+        value: http://localhost:8081/v1/chat/completions
+      - key: AI_API_KEY
+        sync: false
+      - key: DEFAULT_MODEL
+        value: argon-4@think=low
+      - key: BOT_NAME
+        value: kiara
+      - key: SYSTEM_PROMPT_PATH
+        value: system_prompt.txt
+      - key: MAX_HISTORY
+        value: "20"
+      - key: OWNER_ID
+        sync: false
+      - key: ABUSE_REMOTE_URL
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO

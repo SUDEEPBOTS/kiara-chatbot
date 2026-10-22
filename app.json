@@ -1,0 +1,69 @@
+{
+  "name": "Kiara Chatbot",
+  "description": "High-performance Gen Z Telegram AI Chatbot built in Go with Multimodal Vision, Dynamic Model Switching, and Auto-Moderation.",
+  "repository": "https://github.com/your-username/kiara-chatbot",
+  "logo": "https://raw.githubusercontent.com/your-username/kiara-chatbot/main/.github/assets/logo.png",
+  "keywords": ["telegram-bot", "golang", "gogram", "ai-chatbot", "gemini", "vision", "moderation"],
+  "stack": "container",
+  "env": {
+    "BOT_TOKEN": {
+      "description": "Your Telegram Bot token from @BotFather",
+      "required": true
+    },
+    "API_ID": {
+      "description": "Your Telegram API ID from my.telegram.org",
+      "value": "38674666",
+      "required": true
+    },
+    "API_HASH": {
+      "description": "Your Telegram API Hash from my.telegram.org",
+      "value": "b4f0fbf8fb560c4bc9e7b9f3698e474c",
+      "required": true
+    },
+    "AI_API_URL": {
+      "description": "URL to OpenAI-compatible Chat Completions API endpoint",
+      "value": "http://localhost:8081/v1/chat/completions",
+      "required": true
+    },
+    "AI_API_KEY": {
+      "description": "Bearer token API key for the AI endpoint",
+      "value": "sudeepbots",
+      "required": true
+    },
+    "DEFAULT_MODEL": {
+      "description": "Default AI Model name (e.g. argon-4@think=low, gpt-4o, deepseek-chat)",
+      "value": "argon-4@think=low",
+      "required": true
+    },
+    "BOT_NAME": {
+      "description": "Trigger name in group chats",
+      "value": "kiara",
+      "required": true
+    },
+    "MAX_HISTORY": {
+      "description": "Maximum conversation turns preserved in memory",
+      "value": "20",
+      "required": false
+    },
+    "OWNER_ID": {
+      "description": "Telegram user ID of the bot master / admin",
+      "value": "0",
+      "required": false
+    },
+    "ABUSE_REMOTE_URL": {
+      "description": "Remote URL on Yukisbox hosting blocklist words (keeps GitHub safe)",
+      "required": false
+    },
+    "LOG_LEVEL": {
+      "description": "Application logging verbosity (INFO, WARN, ERROR)",
+      "value": "INFO",
+      "required": false
+    }
+  },
+  "formation": {
+    "worker": {
+      "quantity": 1,
+      "size": "eco"
+    }
+  }
+}
