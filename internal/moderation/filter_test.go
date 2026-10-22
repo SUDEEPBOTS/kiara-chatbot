@@ -1,3 +1,29 @@
+// ==============================================================================
+// Copyright (c) 2026 SUDEEPBOTS (Sudeep Sharma). All rights reserved.
+//
+// Project: Kiara Chatbot - High-Performance Telegram AI Assistant
+// Repository: https://github.com/SUDEEPBOTS/kiara-chatbot
+// License: MIT License
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ==============================================================================
+
 package moderation
 
 import (
@@ -6,24 +32,24 @@ import (
 
 func TestNormalizationAndDetection(t *testing.T) {
 	f := NewFilter("", "")
-	f.AddWord("fuck")
-	f.AddWord("bhenchod")
-	f.AddWord("kamina")
+	f.AddWord("badword")
+	f.AddWord("abusive")
+	f.AddWord("spammer")
 
 	testCases := []struct {
 		input    string
 		expected bool
 	}{
-		{"f.u.c.k", true},
-		{"fu.ck", true},
-		{"f_u_c_k", true},
-		{"f u c k", true},
-		{"fuuuuuck", true},
-		{"f@ck", true},
-		{"b.h.e.n.c.h.o.d", true},
-		{"bhench0d", true},
-		{"bhenchoddd", true},
-		{"k.a.m.i.n.a", true},
+		{"b.a.d.w.o.r.d", true},
+		{"bad.word", true},
+		{"b_a_d_w_o_r_d", true},
+		{"b a d w o r d", true},
+		{"baaaadword", true},
+		{"b@dword", true},
+		{"b4dw0rd", true},
+		{"a.b.u.s.i.v.e", true},
+		{"abuuusiiive", true},
+		{"sp@mm3r", true},
 		{"hello friend how are you", false},
 		{"welcome to the group", false},
 	}

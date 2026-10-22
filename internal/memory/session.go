@@ -1,3 +1,29 @@
+// ==============================================================================
+// Copyright (c) 2026 SUDEEPBOTS (Sudeep Sharma). All rights reserved.
+//
+// Project: Kiara Chatbot - High-Performance Telegram AI Assistant
+// Repository: https://github.com/SUDEEPBOTS/kiara-chatbot
+// License: MIT License
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ==============================================================================
+
 package memory
 
 import (
@@ -8,9 +34,6 @@ import (
 	"kiara-chatbot/internal/ai"
 )
 
-// SessionKey computes a distinct key per user per chat context:
-// In DM: "dm_<userID>"
-// In GC: "gc_<chatID>_u_<userID>"
 func SessionKey(chatID int64, userID int64, isGroup bool) string {
 	if isGroup {
 		return fmt.Sprintf("gc_%d_u_%d", chatID, userID)
@@ -41,10 +64,7 @@ func NewStore(maxHistory int, ttl time.Duration) *Store {
 		maxHistory: maxHistory,
 		ttl:        ttl,
 	}
-
-	// Periodic cleanup of stale sessions
 	go s.cleanupLoop()
-
 	return s
 }
 
@@ -158,7 +178,6 @@ func (s *Store) AddTurn(key string, userMsg, botMsg string, defaultModel string)
 		ai.Message{Role: "assistant", Content: botMsg},
 	)
 
-	// Prune older history to stay within maxHistory turns
 	if len(sess.History) > s.maxHistory*2 {
 		overflow := len(sess.History) - (s.maxHistory * 2)
 		sess.History = sess.History[overflow:]

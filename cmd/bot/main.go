@@ -1,3 +1,29 @@
+// ==============================================================================
+// Copyright (c) 2026 SUDEEPBOTS (Sudeep Sharma). All rights reserved.
+//
+// Project: Kiara Chatbot - High-Performance Telegram AI Assistant
+// Repository: https://github.com/SUDEEPBOTS/kiara-chatbot
+// License: MIT License
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ==============================================================================
+
 package main
 
 import (
@@ -19,7 +45,6 @@ import (
 )
 
 func main() {
-	// Configure professional UTC timestamp logging with zero emojis
 	log.SetFlags(log.Ldate | log.Ltime | log.LUTC)
 	log.Println("[INFO] Starting Kiara Chatbot service...")
 
@@ -28,17 +53,10 @@ func main() {
 		log.Println("[WARN] BOT_TOKEN is empty. Set it in .env before running.")
 	}
 
-	aiClient := ai.NewClient(cfg.AiAPIURL, cfg.AiAPIKey)
+	aiClient := ai.NewClient(cfg.AiAPIURL, cfg.AiAPIKey, cfg.GroqAPIKey, cfg.GeminiAPIKey, cfg.AIProvider)
 	memStore := memory.NewStore(cfg.MaxHistory, 2*time.Hour)
-
-	// Leaky Bucket Rate Limiter ("Baltti") to prevent sticker spam in DMs
-	// Burst capacity: 3 stickers, drain rate: 0.33 stickers/sec (1 per 3s), temporary block: 60s
 	limiter := ratelimit.NewLeakyBucket(3.0, 0.33, 60*time.Second)
-
-	// Dynamic Sticker Pool for saving and sending Telegram stickers
 	stickersPool := stickers.NewPool("data/stickers_pool.json")
-
-	// Auto-Moderation Profanity Filter (dots, unicode fonts, leetspeak, fuzzy matching)
 	modFilter := moderation.NewFilter(cfg.AbuseFilePath, cfg.AbuseRemoteURL)
 
 	client, err := telegram.NewClient(telegram.ClientConfig{
@@ -66,7 +84,6 @@ func main() {
 
 		bh := handlers.NewBotHandler(client, aiClient, memStore, cfg, me, limiter, stickersPool, modFilter)
 
-		// Register command handlers
 		client.AddCommandHandler("start", bh.HandleStart)
 		client.AddCommandHandler("help", bh.HandleHelp)
 		client.AddCommandHandler("models", bh.HandleModels)
@@ -79,10 +96,7 @@ func main() {
 		client.AddCommandHandler("abuse", bh.HandleAbuse)
 		client.AddCommandHandler("automod", bh.HandleAbuse)
 
-		// Register callback query handler for inline button pagination & settings
 		client.AddCallbackHandler("", bh.HandleCallback)
-
-		// Register global message listener for DM and GC mentions/replies
 		client.AddMessageHandler("", bh.HandleIncomingMessage)
 
 		log.Println("[INFO] Kiara Chatbot is now active and listening for messages!")
@@ -90,7 +104,6 @@ func main() {
 		log.Println("[INFO] Bot compiled successfully. Add BOT_TOKEN in .env and start the binary.")
 	}
 
-	// Graceful shutdown handling
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan

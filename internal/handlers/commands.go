@@ -1,3 +1,29 @@
+// ==============================================================================
+// Copyright (c) 2026 SUDEEPBOTS (Sudeep Sharma). All rights reserved.
+//
+// Project: Kiara Chatbot - High-Performance Telegram AI Assistant
+// Repository: https://github.com/SUDEEPBOTS/kiara-chatbot
+// License: MIT License
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ==============================================================================
+
 package handlers
 
 import (
@@ -17,22 +43,21 @@ type ModelItem struct {
 
 var ModelCatalog = []ModelItem{
 	{ID: "argon-4", Name: "Gemini 4 Argon", Desc: "Flagship Frontier Reasoning"},
-	{ID: "gemini-pro", Name: "Gemini 3.1 Pro", Desc: "Advanced Pro & Logic"},
-	{ID: "gemini-2.0-flash", Name: "Gemini 2.0 Flash", Desc: "Fast & Balanced"},
+	{ID: "llama-3.3-70b-versatile", Name: "Llama 3.3 70B (Groq)", Desc: "Ultra-Fast Groq Inference"},
+	{ID: "gemini-2.0-flash", Name: "Gemini 2.0 Flash", Desc: "Fast Multimodal Flash"},
 	{ID: "gemini-flash-lite", Name: "Gemini Flash-Lite", Desc: "Lightweight & Fastest"},
 	{ID: "deepseek-chat", Name: "DeepSeek V3", Desc: "Smart Dialogue & Natural"},
 	{ID: "deepseek-reasoner", Name: "DeepSeek R1", Desc: "Deep Reasoning & Logic"},
 	{ID: "gpt-4o", Name: "OpenAI GPT-4o", Desc: "Frontier Multimodal"},
-	{ID: "chatgpt-4o", Name: "ChatGPT 4o", Desc: "ChatGPT Web Tier"},
-	{ID: "claude-3-5-sonnet", Name: "Claude 3.5 Sonnet", Desc: "Top Coding & Nuance"},
+	{ID: "mixtral-8x7b-32768", Name: "Mixtral 8x7B (Groq)", Desc: "Groq High-Speed MoE"},
+	{ID: "claude-3-5-sonnet", Name: "Claude 3.5 Sonnet", Desc: "Nuanced Dialogue & Coding"},
 	{ID: "grok-3", Name: "xAI Grok 3", Desc: "xAI Frontier Model"},
-	{ID: "gemini-3.7-flash", Name: "Gemini 3.7 Flash", Desc: "Latest Flash Model"},
+	{ID: "official-gemini-2.0-flash", Name: "Official Gemini 2.0", Desc: "Google Gemini Cloud API"},
 	{ID: "gpt-4o-mini", Name: "GPT-4o Mini", Desc: "Fast Conversational"},
 }
 
 const PageSize = 4
 
-// RenderModelsPage generates the text and inline keyboard for a specific page and session
 func (b *BotHandler) RenderModelsPage(sessKey string, page int) (string, *telegram.ReplyInlineMarkup) {
 	totalModels := len(ModelCatalog)
 	totalPages := (totalModels + PageSize - 1) / PageSize
@@ -62,7 +87,6 @@ func (b *BotHandler) RenderModelsPage(sessKey string, page int) (string, *telegr
 
 	kb := telegram.NewKeyboard()
 
-	// 1. Model buttons (2 per row for clean mobile layout)
 	pageModels := ModelCatalog[start:end]
 	for i := 0; i < len(pageModels); i += 2 {
 		var row []telegram.KeyboardButton
@@ -86,7 +110,6 @@ func (b *BotHandler) RenderModelsPage(sessKey string, page int) (string, *telegr
 		kb.AddRow(row...)
 	}
 
-	// 2. Navigation row (Prev, Page counter, Next)
 	var navRow []telegram.KeyboardButton
 	if page > 0 {
 		navRow = append(navRow, telegram.Button.Data("◀️ Prev", fmt.Sprintf("page:%d", page-1)))
@@ -103,7 +126,6 @@ func (b *BotHandler) RenderModelsPage(sessKey string, page int) (string, *telegr
 	}
 	kb.AddRow(navRow...)
 
-	// 3. Settings & Controls row (Thinking toggle & Close)
 	thinkLabel := fmt.Sprintf("⚡ Think: %s", strings.ToUpper(currentThink))
 	kb.AddRow(
 		telegram.Button.Data(thinkLabel, fmt.Sprintf("think:%d", page)),
@@ -126,6 +148,7 @@ func (b *BotHandler) HandleHelp(m *telegram.NewMessage) error {
 • <b>/model &lt;name&gt;</b> — Switch model directly (e.g. <code>/model argon-4</code>)
 • <b>/imagine &lt;prompt&gt;</b> — Generate images via AI
 • <b>/clear</b> — Reset memory for this chat
+• <b>/abuse &lt;on|off&gt;</b> — Toggle group auto-moderation
 • <b>/status</b> — Check active model & chat state
 • <b>/help</b> — Show this help message
 
@@ -138,7 +161,6 @@ func (b *BotHandler) HandleHelp(m *telegram.NewMessage) error {
 	return err
 }
 
-// HandleModels opens the paginated interactive inline keyboard
 func (b *BotHandler) HandleModels(m *telegram.NewMessage) error {
 	sessKey := memory.SessionKey(m.ChatID(), m.SenderID(), !m.IsPrivate())
 	text, markup := b.RenderModelsPage(sessKey, 0)
@@ -146,7 +168,6 @@ func (b *BotHandler) HandleModels(m *telegram.NewMessage) error {
 	return err
 }
 
-// HandleModel allows direct switching via command: /model argon-4
 func (b *BotHandler) HandleModel(m *telegram.NewMessage) error {
 	args := strings.TrimSpace(m.Args())
 	if args == "" {
@@ -157,7 +178,6 @@ func (b *BotHandler) HandleModel(m *telegram.NewMessage) error {
 	targetModel := strings.ToLower(args)
 	think := b.memory.GetThink(sessKey, "low")
 
-	// If it's an argon/gemini model and doesn't specify thinking, append current think level
 	if (strings.Contains(targetModel, "argon") || strings.Contains(targetModel, "gemini")) && !strings.Contains(targetModel, "@think=") {
 		targetModel = fmt.Sprintf("%s@think=%s", targetModel, think)
 	}
@@ -167,7 +187,6 @@ func (b *BotHandler) HandleModel(m *telegram.NewMessage) error {
 	return err
 }
 
-// HandleCallback processes button clicks from inline keyboards
 func (b *BotHandler) HandleCallback(cb *telegram.CallbackQuery) error {
 	data := cb.DataString()
 	sessKey := memory.SessionKey(cb.GetChatID(), cb.GetSenderID(), !cb.IsPrivate())
@@ -183,7 +202,6 @@ func (b *BotHandler) HandleCallback(cb *telegram.CallbackQuery) error {
 		return err
 	}
 
-	// 1. Page navigation: "page:<num>"
 	if strings.HasPrefix(data, "page:") {
 		pageNum, err := strconv.Atoi(strings.TrimPrefix(data, "page:"))
 		if err == nil {
@@ -194,7 +212,6 @@ func (b *BotHandler) HandleCallback(cb *telegram.CallbackQuery) error {
 		return err
 	}
 
-	// 2. Model selection: "setm:<model_id>:<page>"
 	if strings.HasPrefix(data, "setm:") {
 		parts := strings.Split(data, ":")
 		if len(parts) >= 3 {
@@ -216,12 +233,10 @@ func (b *BotHandler) HandleCallback(cb *telegram.CallbackQuery) error {
 		}
 	}
 
-	// 3. Thinking depth cycle: "think:<page>"
 	if strings.HasPrefix(data, "think:") {
 		pageNum, _ := strconv.Atoi(strings.TrimPrefix(data, "think:"))
 		currentThink := b.memory.GetThink(sessKey, "low")
 
-		// Cycle: low -> medium -> high -> off -> low
 		nextThink := "medium"
 		switch currentThink {
 		case "low":
@@ -238,7 +253,6 @@ func (b *BotHandler) HandleCallback(cb *telegram.CallbackQuery) error {
 
 		b.memory.SetThink(sessKey, nextThink)
 
-		// Also update current model string if it's a gemini/argon model
 		curModel := b.memory.GetModel(sessKey, b.cfg.DefaultModel)
 		if idx := strings.Index(curModel, "@think="); idx != -1 {
 			curModel = curModel[:idx] + "@think=" + nextThink
@@ -255,7 +269,6 @@ func (b *BotHandler) HandleCallback(cb *telegram.CallbackQuery) error {
 	return nil
 }
 
-// HandleImagine generates an image from prompt using unified-web2api
 func (b *BotHandler) HandleImagine(m *telegram.NewMessage) error {
 	prompt := strings.TrimSpace(m.Args())
 	if prompt == "" {
@@ -311,7 +324,6 @@ func (b *BotHandler) HandleStatus(m *telegram.NewMessage) error {
 	return err
 }
 
-// IsAdmin checks if sender is group administrator or bot owner
 func (b *BotHandler) IsAdmin(chatID, userID int64) bool {
 	if b.cfg.OwnerID != 0 && userID == b.cfg.OwnerID {
 		return true
@@ -329,7 +341,6 @@ func (b *BotHandler) IsAdmin(chatID, userID int64) bool {
 	return false
 }
 
-// HandleAbuse toggles auto-moderation on or off for this group
 func (b *BotHandler) HandleAbuse(m *telegram.NewMessage) error {
 	if m.IsPrivate() {
 		_, err := m.Reply("Auto-moderation is only active in group chats! In DMs you can just text normally ✨")

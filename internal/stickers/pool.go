@@ -1,3 +1,29 @@
+// ==============================================================================
+// Copyright (c) 2026 SUDEEPBOTS (Sudeep Sharma). All rights reserved.
+//
+// Project: Kiara Chatbot - High-Performance Telegram AI Assistant
+// Repository: https://github.com/SUDEEPBOTS/kiara-chatbot
+// License: MIT License
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ==============================================================================
+
 package stickers
 
 import (
@@ -63,7 +89,6 @@ func (p *Pool) save() {
 	}
 }
 
-// Add saves a new sticker to the collection if not duplicate
 func (p *Pool) Add(doc *telegram.DocumentObj, userID int64) bool {
 	if doc == nil {
 		return false
@@ -72,14 +97,12 @@ func (p *Pool) Add(doc *telegram.DocumentObj, userID int64) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Check if already in pool
 	for _, s := range p.stickers {
 		if s.ID == doc.ID {
 			return false
 		}
 	}
 
-	// Extract emoji from sticker attributes if available
 	emoji := ""
 	for _, attr := range doc.Attributes {
 		if st, ok := attr.(*telegram.DocumentAttributeSticker); ok {
@@ -98,7 +121,6 @@ func (p *Pool) Add(doc *telegram.DocumentObj, userID int64) bool {
 		AddedAt:       time.Now().Unix(),
 	}
 
-	// Cap at 200 stickers
 	if len(p.stickers) >= 200 {
 		p.stickers = p.stickers[1:]
 	}
@@ -107,7 +129,6 @@ func (p *Pool) Add(doc *telegram.DocumentObj, userID int64) bool {
 	return true
 }
 
-// GetRandom returns a random sticker as an InputMediaDocument ready to be sent
 func (p *Pool) GetRandom() (*telegram.InputMediaDocument, string) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -129,7 +150,6 @@ func (p *Pool) GetRandom() (*telegram.InputMediaDocument, string) {
 	return media, s.Emoji
 }
 
-// Count returns total stickers collected
 func (p *Pool) Count() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()

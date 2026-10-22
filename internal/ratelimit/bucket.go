@@ -1,3 +1,29 @@
+// ==============================================================================
+// Copyright (c) 2026 SUDEEPBOTS (Sudeep Sharma). All rights reserved.
+//
+// Project: Kiara Chatbot - High-Performance Telegram AI Assistant
+// Repository: https://github.com/SUDEEPBOTS/kiara-chatbot
+// License: MIT License
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ==============================================================================
+
 package ratelimit
 
 import (
@@ -5,18 +31,16 @@ import (
 	"time"
 )
 
-// LeakyBucket implements a token/leaky bucket rate limiter to prevent sticker spam in DMs.
 type LeakyBucket struct {
 	mu            sync.Mutex
-	capacity      float64       // Max stickers allowed in burst (e.g. 3)
-	leakRate      float64       // Stickers drained per second (e.g. 0.33 = 1 per 3 seconds)
+	capacity      float64
+	leakRate      float64
 	water         map[int64]float64
 	lastUpdated   map[int64]time.Time
 	blockedUntil  map[int64]time.Time
-	blockDuration time.Duration // Duration to temporarily block on overflow (e.g. 60s)
+	blockDuration time.Duration
 }
 
-// NewLeakyBucket creates a new rate limiter instance
 func NewLeakyBucket(capacity, leakRate float64, blockDuration time.Duration) *LeakyBucket {
 	return &LeakyBucket{
 		capacity:      capacity,
@@ -28,33 +52,25 @@ func NewLeakyBucket(capacity, leakRate float64, blockDuration time.Duration) *Le
 	}
 }
 
-// CheckSticker evaluates if a sticker sent by userID is permitted.
-// Returns:
-//   allowed: whether processing should continue
-//   justBlocked: true only on the moment of overflow (to send a warning message)
-//   remainingBlock: how many seconds remaining if blocked
-func (b *LeakyBucket) CheckSticker(userID int64) (allowed bool, justBlocked bool, remainingBlock int) {
+func (b *LeakyBucket) CheckSticker(userID int64) (bool, bool, int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	now := time.Now()
 
-	// 1. Check if user is currently blocked
 	if until, isBlocked := b.blockedUntil[userID]; isBlocked {
 		if now.Before(until) {
 			rem := int(until.Sub(now).Seconds())
 			if rem <= 0 {
 				rem = 1
 			}
-			return false, false, rem // Still blocked, silently ignore
+			return false, false, rem
 		}
-		// Block expired, reset water
 		delete(b.blockedUntil, userID)
 		b.water[userID] = 0
 		b.lastUpdated[userID] = now
 	}
 
-	// 2. Calculate leakage
 	last, exists := b.lastUpdated[userID]
 	if !exists {
 		b.lastUpdated[userID] = now
@@ -65,15 +81,12 @@ func (b *LeakyBucket) CheckSticker(userID int64) (allowed bool, justBlocked bool
 	elapsed := now.Sub(last).Seconds()
 	b.lastUpdated[userID] = now
 
-	// Water leaks over time
 	currentWater := b.water[userID] - (elapsed * b.leakRate)
 	if currentWater < 0 {
 		currentWater = 0
 	}
 
-	// 3. Add 1 sticker cost to bucket
 	if currentWater+1.0 > b.capacity {
-		// Overflow! Block user temporarily
 		until := now.Add(b.blockDuration)
 		b.blockedUntil[userID] = until
 		b.water[userID] = b.capacity

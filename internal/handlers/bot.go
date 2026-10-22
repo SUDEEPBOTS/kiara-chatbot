@@ -1,3 +1,29 @@
+// ==============================================================================
+// Copyright (c) 2026 SUDEEPBOTS (Sudeep Sharma). All rights reserved.
+//
+// Project: Kiara Chatbot - High-Performance Telegram AI Assistant
+// Repository: https://github.com/SUDEEPBOTS/kiara-chatbot
+// License: MIT License
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ==============================================================================
+
 package handlers
 
 import (
@@ -78,7 +104,6 @@ func (b *BotHandler) GetSystemPrompt() string {
 	return b.systemPrompt
 }
 
-// FormatChatContext builds live runtime metadata about the chat & user
 func FormatChatContext(m *telegram.NewMessage, isGroup bool) string {
 	var sb strings.Builder
 	sb.WriteString("\n\n[Runtime Chat & User Context:\n")
@@ -114,27 +139,44 @@ func FormatChatContext(m *telegram.NewMessage, isGroup bool) string {
 		sb.WriteString(fmt.Sprintf("- User ID: %d\n", m.SenderID()))
 	}
 
-	sb.WriteString("Instruction: If the user asks about their own name, who they are, their user ID, or about the group name/details, use this actual data naturally in your response while maintaining your sassy Gen Z persona (do NOT sound like a robot or dump JSON).]\n")
+	sb.WriteString("Instruction: If the user asks about their own name, identity, user ID, or about the group name/details, use this actual data naturally in your response while maintaining your sassy Gen Z persona (do NOT sound like a robot or dump JSON).]\n")
 	return sb.String()
 }
 
-// ShouldRespond determines if the message is directed at the bot.
-// Returns: (shouldRespond, cleanPromptText, hasVisualMedia)
+func ExtractImagePrompt(text string) (bool, string) {
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?i)^(.+?)\s*(?:ki|ka)?\s*(?:image|photo|pic)\s+(?:bana\s*de|bana\s*do|banao|bana)$`),
+		regexp.MustCompile(`(?i)(?:image|photo|pic|picture)\s+(?:bana\s*de|bana\s*do|banao|bana)\s*[:\-\s]*(.+)`),
+		regexp.MustCompile(`(?i)(?:draw|generate\s+(?:an?\s+)?image|create\s+(?:an?\s+)?image|paint)\s*(?:of|a|an|me|for\s*me)?\s*[:\-\s]*(.+)`),
+	}
+
+	for _, pat := range patterns {
+		matches := pat.FindStringSubmatch(text)
+		if len(matches) > 1 {
+			res := strings.TrimSpace(matches[1])
+			res = strings.TrimPrefix(res, ":")
+			res = strings.TrimPrefix(res, "-")
+			res = strings.TrimSpace(res)
+			if len(res) >= 3 {
+				return true, res
+			}
+		}
+	}
+	return false, ""
+}
+
 func (b *BotHandler) ShouldRespond(m *telegram.NewMessage) (bool, string, bool) {
 	text := strings.TrimSpace(m.Text())
 	hasMedia := (m.Photo() != nil || m.Sticker() != nil)
 
-	// Ignore commands (they are processed by separate command handlers)
 	if strings.HasPrefix(text, "/") {
 		return false, "", false
 	}
 
-	// 1. Direct Message (DM) -> Always respond
 	if m.IsPrivate() {
 		return true, text, hasMedia
 	}
 
-	// 2. Group Chat (GC)
 	botUsername := ""
 	if b.botUser != nil {
 		botUsername = strings.ToLower(b.botUser.Username)
@@ -143,20 +185,17 @@ func (b *BotHandler) ShouldRespond(m *telegram.NewMessage) (bool, string, bool) 
 	lowerText := strings.ToLower(text)
 	botMention := "@" + botUsername
 
-	// A. Tagged via @BotUsername
 	if botUsername != "" && strings.Contains(lowerText, botMention) {
 		cleanText := strings.TrimSpace(strings.ReplaceAll(lowerText, botMention, ""))
 		return true, cleanText, hasMedia
 	}
 
-	// B. Quote reply to bot's message
 	if m.IsReply() && b.botUser != nil {
 		if m.ReplySenderID() == b.botUser.ID {
 			return true, text, hasMedia
 		}
 	}
 
-	// C. Mentioned by name ("kiara" or "kia")
 	namePattern := regexp.MustCompile(`(?i)\b(kiara|kia)\b`)
 	if namePattern.MatchString(text) {
 		cleanText := strings.TrimSpace(namePattern.ReplaceAllString(text, ""))
@@ -169,19 +208,15 @@ func (b *BotHandler) ShouldRespond(m *telegram.NewMessage) (bool, string, bool) 
 	return false, "", false
 }
 
-// HandleIncomingMessage is the master message listener
 func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
-	// 0. Auto-moderation check: Delete abusive messages in groups & issue self-destructing blockquote warning
 	if b.modFilter != nil && b.modFilter.ModerateMessage(m) {
 		return nil
 	}
 
-	// 1. Auto-collect incoming stickers into sticker pool
 	if sticker := m.Sticker(); sticker != nil {
 		b.stickers.Add(sticker, m.SenderID())
 	}
 
-	// 2. Anti-spam Leaky Bucket check for stickers in DM
 	if m.IsPrivate() && m.Sticker() != nil {
 		allowed, justBlocked, remSec := b.limiter.CheckSticker(m.SenderID())
 		if !allowed {
@@ -202,6 +237,31 @@ func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
 	isGroup := !m.IsPrivate()
 	sessKey := memory.SessionKey(chatID, senderID, isGroup)
 
+	if !hasMedia {
+		isImageReq, imgPrompt := ExtractImagePrompt(prompt)
+		if isImageReq && imgPrompt != "" {
+			go func() {
+				_, _ = b.client.SendAction(chatID, "upload_photo")
+				statusMsg, _ := m.Reply("painting your idea... give me a sec 🎨")
+
+				imgURL, err := b.ai.GenerateImage(imgPrompt)
+				if err != nil {
+					if statusMsg != nil {
+						_, _ = statusMsg.Edit(fmt.Sprintf("ugh couldn't draw that: %v 😭", err))
+					}
+					return
+				}
+
+				caption := fmt.Sprintf("✨ <b>Prompt:</b> <i>%s</i>\n🎨 <i>Generated by Kiara</i>", imgPrompt)
+				_, err = m.ReplyMedia(imgURL, &telegram.MediaOptions{Caption: caption})
+				if err == nil && statusMsg != nil {
+					_, _ = statusMsg.Delete()
+				}
+			}()
+			return nil
+		}
+	}
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -209,10 +269,8 @@ func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
 			}
 		}()
 
-		// Start Telegram typing action
 		_, _ = b.client.SendAction(chatID, "typing")
 
-		// Periodic typing pulse while awaiting AI response
 		stopTyping := make(chan struct{})
 		go func() {
 			ticker := time.NewTicker(4 * time.Second)
@@ -228,7 +286,6 @@ func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
 		}()
 		defer close(stopTyping)
 
-		// 3. Process Visual Media if present (Photo or Sticker frame)
 		var procMedia *media.ProcessedMedia
 		if hasMedia {
 			var err error
@@ -238,13 +295,8 @@ func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
 			}
 		}
 
-		// 4. Retrieve active model & settings for this specific user session
 		currentModel := b.memory.GetModel(sessKey, b.cfg.DefaultModel)
-
-		// Base system prompt with live runtime chat and user info
 		systemWithContext := b.GetSystemPrompt() + FormatChatContext(m, isGroup)
-
-		// Build conversation messages
 		messages := b.memory.GetMessagesWithSystem(sessKey, systemWithContext, b.cfg.DefaultModel)
 
 		var turnUserMsg ai.Message
@@ -279,7 +331,6 @@ func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
 
 		messages = append(messages, turnUserMsg)
 
-		// 5. Generate AI reply
 		reply, err := b.ai.GenerateReply(currentModel, messages)
 		if err != nil {
 			log.Printf("[ERROR] AI generation failed for session %s: %v", sessKey, err)
@@ -292,7 +343,6 @@ func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
 			cleanReply = "..."
 		}
 
-		// 6. Sticker Reply Logic
 		shouldSendSticker := strings.Contains(cleanReply, "[SEND_STICKER]")
 		cleanReply = strings.TrimSpace(strings.ReplaceAll(cleanReply, "[SEND_STICKER]", ""))
 
@@ -301,7 +351,6 @@ func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
 			shouldSendSticker = true
 		}
 
-		// 25% chance to send a sticker back if user sent a sticker
 		if !shouldSendSticker && procMedia != nil && strings.HasPrefix(procMedia.MediaType, "sticker") {
 			if rand.Float64() < 0.25 {
 				shouldSendSticker = true
@@ -314,10 +363,8 @@ func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
 			}
 		}
 
-		// Save turn into session memory
 		b.memory.AddTurn(sessKey, memoryUserSummary, cleanReply, b.cfg.DefaultModel)
 
-		// Send text reply if non-empty
 		if cleanReply != "" {
 			_, err = m.Reply(cleanReply)
 			if err != nil {

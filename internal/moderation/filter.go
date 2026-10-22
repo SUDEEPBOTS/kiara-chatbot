@@ -1,3 +1,29 @@
+// ==============================================================================
+// Copyright (c) 2026 SUDEEPBOTS (Sudeep Sharma). All rights reserved.
+//
+// Project: Kiara Chatbot - High-Performance Telegram AI Assistant
+// Repository: https://github.com/SUDEEPBOTS/kiara-chatbot
+// License: MIT License
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ==============================================================================
+
 package moderation
 
 import (
@@ -36,7 +62,6 @@ func NewFilter(sourcePath string, sourceURL string) *Filter {
 	return f
 }
 
-// SetEnabled toggles moderation for a specific chat
 func (f *Filter) SetEnabled(chatID int64, enabled bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -47,14 +72,12 @@ func (f *Filter) SetEnabled(chatID int64, enabled bool) {
 	}
 }
 
-// IsEnabled checks if moderation is currently active for this chat
 func (f *Filter) IsEnabled(chatID int64) bool {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return !f.disabledChats[chatID]
 }
 
-// Reload re-fetches from remote URL (e.g. Yukisbox) and local path
 func (f *Filter) Reload() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -62,7 +85,6 @@ func (f *Filter) Reload() error {
 	f.words = make(map[string]struct{})
 	f.stems = make([]string, 0)
 
-	// 1. Load from remote URL if configured
 	if f.sourceURL != "" {
 		client := &http.Client{Timeout: 15 * time.Second}
 		resp, err := client.Get(f.sourceURL)
@@ -75,7 +97,6 @@ func (f *Filter) Reload() error {
 		}
 	}
 
-	// 2. Load from local file if exists
 	if f.sourcePath != "" {
 		if file, err := os.Open(f.sourcePath); err == nil {
 			defer file.Close()
@@ -87,7 +108,6 @@ func (f *Filter) Reload() error {
 	return nil
 }
 
-// Load calls Reload
 func (f *Filter) Load() {
 	_ = f.Reload()
 }
@@ -115,7 +135,6 @@ func (f *Filter) parseFromReader(r io.Reader) {
 	}
 }
 
-// AddWord manually registers a word
 func (f *Filter) AddWord(word string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -128,9 +147,7 @@ func (f *Filter) AddWord(word string) {
 	}
 }
 
-// NormalizeText handles Unicode font conversion, leetspeak, punctuation removal, and repeated chars
 func (f *Filter) NormalizeText(input string) string {
-	// 1. Unicode font mapping (Math Bold, Script, Fraktur, Fullwidth to ASCII a-z)
 	var sb strings.Builder
 	for _, r := range input {
 		ascii := unicodeToASCII(r)
@@ -138,7 +155,6 @@ func (f *Filter) NormalizeText(input string) string {
 	}
 	text := strings.ToLower(sb.String())
 
-	// 2. Leetspeak mapping
 	leetMap := map[rune]rune{
 		'0': 'o',
 		'1': 'i',
@@ -162,11 +178,9 @@ func (f *Filter) NormalizeText(input string) string {
 	}
 	text = sb2.String()
 
-	// 3. Strip all non-alphabetic separators (dots, dashes, stars, underscores, spaces)
 	reg := regexp.MustCompile(`[^a-zA-Z\p{Devanagari}\p{Gurmukhi}]`)
 	clean := reg.ReplaceAllString(text, "")
 
-	// 4. Collapse repeating characters
 	return collapseRepeatedRunes(clean)
 }
 
@@ -205,7 +219,6 @@ func collapseRepeatedRunes(s string) string {
 	return string(result)
 }
 
-// IsAbusive checks if text contains blacklisted profanity, dots evasion, or typos
 func (f *Filter) IsAbusive(text string) (bool, string) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -219,19 +232,16 @@ func (f *Filter) IsAbusive(text string) (bool, string) {
 		return false, ""
 	}
 
-	// 1. Exact match on normalized string
 	if _, ok := f.words[norm]; ok {
 		return true, norm
 	}
 
-	// 2. Substring / Stem check
 	for _, stem := range f.stems {
 		if strings.Contains(norm, stem) {
 			return true, stem
 		}
 	}
 
-	// 3. Word token check with fuzzy Levenshtein distance
 	tokens := strings.Fields(text)
 	for _, tok := range tokens {
 		normTok := f.NormalizeText(tok)
@@ -290,9 +300,7 @@ func levenshteinDistance(s, t string) int {
 	return d[len(s)][len(t)]
 }
 
-// ModerateMessage inspects incoming group message and deletes + warns if abusive
 func (f *Filter) ModerateMessage(m *telegram.NewMessage) bool {
-	// Skip private DMs or groups where moderation is toggled OFF
 	if m.IsPrivate() || !f.IsEnabled(m.ChatID()) {
 		return false
 	}
@@ -310,10 +318,8 @@ func (f *Filter) ModerateMessage(m *telegram.NewMessage) bool {
 	log.Printf("[MODERATION] Abusive message detected from user %d in chat %d (matched: %s). Deleting...",
 		m.SenderID(), m.ChatID(), matched)
 
-	// 1. Delete the offensive message
 	_, _ = m.Delete()
 
-	// 2. Mention user and send blockquote warning
 	senderName := "user"
 	if m.Sender != nil {
 		if m.Sender.Username != "" {
@@ -327,7 +333,6 @@ func (f *Filter) ModerateMessage(m *telegram.NewMessage) bool {
 
 	warnMsg, err := m.Respond(warning)
 	if err == nil && warnMsg != nil {
-		// 3. Auto-delete warning message after 8 seconds
 		go func() {
 			time.Sleep(8 * time.Second)
 			_, _ = warnMsg.Delete()

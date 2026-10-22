@@ -1,3 +1,29 @@
+// ==============================================================================
+// Copyright (c) 2026 SUDEEPBOTS (Sudeep Sharma). All rights reserved.
+//
+// Project: Kiara Chatbot - High-Performance Telegram AI Assistant
+// Repository: https://github.com/SUDEEPBOTS/kiara-chatbot
+// License: MIT License
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ==============================================================================
+
 package media
 
 import (
@@ -14,18 +40,15 @@ import (
 
 type ProcessedMedia struct {
 	Base64DataURL string
-	MediaType     string // "photo", "sticker_static", "sticker_video", "sticker_animated"
+	MediaType     string
 	Emoji         string
 	CleanPrompt   string
 }
 
-// ProcessMessageMedia extracts vision-ready image data and metadata from photos or stickers.
-// Returns nil if message contains no supported visual media.
 func ProcessMessageMedia(m *telegram.NewMessage) (*ProcessedMedia, error) {
 	tmpDir := os.TempDir()
 	uniqueID := fmt.Sprintf("%d_%d_%d", m.ChatID(), m.ID, time.Now().UnixNano())
 
-	// 1. Photo handling
 	if m.Photo() != nil {
 		targetFile := filepath.Join(tmpDir, fmt.Sprintf("kiara_photo_%s.jpg", uniqueID))
 		defer os.Remove(targetFile)
@@ -49,7 +72,6 @@ func ProcessMessageMedia(m *telegram.NewMessage) (*ProcessedMedia, error) {
 		}, nil
 	}
 
-	// 2. Sticker handling
 	if sticker := m.Sticker(); sticker != nil {
 		emoji := ""
 		for _, attr := range sticker.Attributes {
@@ -61,7 +83,6 @@ func ProcessMessageMedia(m *telegram.NewMessage) (*ProcessedMedia, error) {
 
 		mime := strings.ToLower(sticker.MimeType)
 
-		// A. Video Sticker (WebM)
 		if strings.Contains(mime, "video") || strings.HasSuffix(mime, "webm") {
 			rawWebm := filepath.Join(tmpDir, fmt.Sprintf("kiara_vstk_%s.webm", uniqueID))
 			frameJpg := filepath.Join(tmpDir, fmt.Sprintf("kiara_frame_%s.jpg", uniqueID))
@@ -74,10 +95,8 @@ func ProcessMessageMedia(m *telegram.NewMessage) (*ProcessedMedia, error) {
 			}
 			defer os.Remove(downloadedPath)
 
-			// Use ffmpeg to grab a frame from the middle (~0.5s)
 			cmd := exec.Command("ffmpeg", "-y", "-ss", "00:00:00.5", "-i", downloadedPath, "-vframes", "1", frameJpg)
 			if err := cmd.Run(); err != nil {
-				// Fallback without -ss in case the video sticker is under 0.5s
 				cmd2 := exec.Command("ffmpeg", "-y", "-i", downloadedPath, "-vframes", "1", frameJpg)
 				if err2 := cmd2.Run(); err2 != nil {
 					return nil, fmt.Errorf("ffmpeg frame extraction failed: %w", err2)
@@ -98,7 +117,6 @@ func ProcessMessageMedia(m *telegram.NewMessage) (*ProcessedMedia, error) {
 			}, nil
 		}
 
-		// B. Animated Sticker (TGS / Lottie)
 		if strings.Contains(mime, "tgsticker") || strings.Contains(mime, "lottie") {
 			thumbPath := filepath.Join(tmpDir, fmt.Sprintf("kiara_thumb_%s.jpg", uniqueID))
 			defer os.Remove(thumbPath)
@@ -122,7 +140,6 @@ func ProcessMessageMedia(m *telegram.NewMessage) (*ProcessedMedia, error) {
 			}
 		}
 
-		// C. Static Sticker (WebP) or general sticker
 		rawWebp := filepath.Join(tmpDir, fmt.Sprintf("kiara_stk_%s.webp", uniqueID))
 		outJpg := filepath.Join(tmpDir, fmt.Sprintf("kiara_stk_%s.jpg", uniqueID))
 		defer os.Remove(rawWebp)
@@ -134,7 +151,6 @@ func ProcessMessageMedia(m *telegram.NewMessage) (*ProcessedMedia, error) {
 		}
 		defer os.Remove(downloadedPath)
 
-		// Convert WebP to JPG for universal Vision model compatibility
 		cmd := exec.Command("ffmpeg", "-y", "-i", downloadedPath, outJpg)
 		if err := cmd.Run(); err != nil {
 			return nil, fmt.Errorf("ffmpeg webp conversion failed: %w", err)
