@@ -1,5 +1,5 @@
 // ==============================================================================
-// Copyright (c) 2026 SUDEEPBOTS (Sudeep Sharma). All rights reserved.
+// Copyright (c) 2026 SUDEEPBOTS. All rights reserved.
 //
 // Project: Kiara Chatbot - High-Performance Telegram AI Assistant
 // Repository: https://github.com/SUDEEPBOTS/kiara-chatbot

@@ -1,7 +1,7 @@
 # Kiara Chatbot (Telegram AI Bot in Go)
 
-[![Go CI](https://github.com/your-username/kiara-chatbot/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/kiara-chatbot/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/your-username/kiara-chatbot)](https://goreportcard.com/report/github.com/your-username/kiara-chatbot)
+[![Go CI](https://github.com/SUDEEPBOTS/kiara-chatbot/actions/workflows/ci.yml/badge.svg)](https://github.com/SUDEEPBOTS/kiara-chatbot/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/SUDEEPBOTS/kiara-chatbot)](https://goreportcard.com/report/github.com/SUDEEPBOTS/kiara-chatbot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker Image](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://hub.docker.com/)
 
@@ -163,3 +163,22 @@ kiara-chatbot/
 ├── LICENSE                      # MIT Open-Source License
 └── README.md                    # Complete project documentation
 ```
+
+
+---
+
+## 👨‍💻 Developer & Community
+
+Built with ❤️ by **[SUDEEPBOTS](https://github.com/SUDEEPBOTS)**.
+
+* 🌐 **Website:** [yukiapi.site](https://yukiapi.site) & [yukisbox.com](https://yukisbox.com)
+* ✈️ **Telegram:** [@Z0iiw](https://t.me/Z0iiw)
+* 📸 **Instagram:** [@iam_billi00](https://www.instagram.com/iam_billi00)
+* 🐦 **Twitter / X:** [@sudeeptelegram](https://x.com/sudeeptelegram)
+* 📧 **Email:** [sudeeptelegram@gmail.com](mailto:sudeeptelegram@gmail.com)
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE) &copy; 2026 **SUDEEPBOTS**.

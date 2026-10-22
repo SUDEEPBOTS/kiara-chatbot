@@ -1,8 +1,8 @@
 {
   "name": "Kiara Chatbot",
   "description": "High-performance Gen Z Telegram AI Chatbot built in Go with Multimodal Vision, Dynamic Model Switching, and Auto-Moderation.",
-  "repository": "https://github.com/your-username/kiara-chatbot",
-  "logo": "https://raw.githubusercontent.com/your-username/kiara-chatbot/main/.github/assets/logo.png",
+  "repository": "https://github.com/SUDEEPBOTS/kiara-chatbot",
+  "logo": "https://raw.githubusercontent.com/SUDEEPBOTS/kiara-chatbot/main/.github/assets/logo.png",
   "keywords": ["telegram-bot", "golang", "gogram", "ai-chatbot", "gemini", "vision", "moderation"],
   "stack": "container",
   "env": {
