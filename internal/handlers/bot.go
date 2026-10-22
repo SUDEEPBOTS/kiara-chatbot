@@ -201,6 +201,19 @@ func FormatChatContext(m *telegram.NewMessage, isGroup bool) string {
 	return sb.String()
 }
 
+var (
+	reTrailingDot = regexp.MustCompile(`\.+(?:\s+|$)`)
+	reMultiSpace  = regexp.MustCompile(`[ \t]+`)
+)
+
+func SanitizePunctuation(text string) string {
+	text = strings.ReplaceAll(text, ",", "")
+	text = strings.ReplaceAll(text, "!", "")
+	text = reTrailingDot.ReplaceAllString(text, " ")
+	text = reMultiSpace.ReplaceAllString(text, " ")
+	return strings.TrimSpace(text)
+}
+
 func ExtractImagePrompt(text string) (bool, string) {
 	patterns := []*regexp.Regexp{
 		regexp.MustCompile(`(?i)^(.+?)\s*(?:ki|ka)?\s*(?:image|photo|pic)\s+(?:bana\s*de|bana\s*do|banao|bana)$`),
@@ -421,6 +434,7 @@ func (b *BotHandler) HandleIncomingMessage(m *telegram.NewMessage) error {
 
 		shouldSendSticker := strings.Contains(cleanReply, "[SEND_STICKER]")
 		cleanReply = strings.TrimSpace(strings.ReplaceAll(cleanReply, "[SEND_STICKER]", ""))
+		cleanReply = SanitizePunctuation(cleanReply)
 
 		lowerPrompt := strings.ToLower(prompt)
 		if strings.Contains(lowerPrompt, "sticker bhej") || strings.Contains(lowerPrompt, "send sticker") || strings.Contains(lowerPrompt, "send a sticker") {
