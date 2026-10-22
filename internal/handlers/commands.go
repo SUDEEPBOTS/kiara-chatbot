@@ -311,6 +311,59 @@ func (b *BotHandler) HandleStatus(m *telegram.NewMessage) error {
 	return err
 }
 
+// IsAdmin checks if sender is group administrator or bot owner
+func (b *BotHandler) IsAdmin(chatID, userID int64) bool {
+	if b.cfg.OwnerID != 0 && userID == b.cfg.OwnerID {
+		return true
+	}
+	p, err := b.client.GetChatMember(chatID, userID)
+	if err == nil && p != nil {
+		status := strings.ToLower(p.Status)
+		if status == "creator" || status == "admin" || status == "administrator" {
+			return true
+		}
+		if p.Rights != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// HandleAbuse toggles auto-moderation on or off for this group
+func (b *BotHandler) HandleAbuse(m *telegram.NewMessage) error {
+	if m.IsPrivate() {
+		_, err := m.Reply("Auto-moderation is only active in group chats! In DMs you can just text normally ✨")
+		return err
+	}
+
+	if !b.IsAdmin(m.ChatID(), m.SenderID()) {
+		_, err := m.Reply("you need to be an admin in this group to toggle moderation 🙄")
+		return err
+	}
+
+	arg := strings.ToLower(strings.TrimSpace(m.Args()))
+	switch arg {
+	case "on", "enable", "start":
+		b.modFilter.SetEnabled(m.ChatID(), true)
+		_, err := m.Reply("🛡️ <b>Auto-Moderation is now ENABLED for this group!</b>\nAbusive messages will be automatically deleted with self-destructing warnings.")
+		return err
+
+	case "off", "disable", "stop":
+		b.modFilter.SetEnabled(m.ChatID(), false)
+		_, err := m.Reply("⚠️ <b>Auto-Moderation is now DISABLED for this group.</b>")
+		return err
+
+	default:
+		currentStatus := "ENABLED"
+		if !b.modFilter.IsEnabled(m.ChatID()) {
+			currentStatus = "DISABLED"
+		}
+		reply := fmt.Sprintf("🛡️ <b>Auto-Moderation Status:</b> <code>%s</code> (Loaded Words: <code>%d</code>)\n\nUsage:\n• <code>/abuse on</code> — Enable auto-moderation\n• <code>/abuse off</code> — Disable auto-moderation", currentStatus, b.modFilter.Count())
+		_, err := m.Reply(reply)
+		return err
+	}
+}
+
 func (b *BotHandler) HandleReload(m *telegram.NewMessage) error {
 	if b.cfg.OwnerID != 0 && m.SenderID() != b.cfg.OwnerID {
 		_, err := m.Reply("you don't have permission to do this 🙄")
@@ -322,6 +375,15 @@ func (b *BotHandler) HandleReload(m *telegram.NewMessage) error {
 		return err
 	}
 
-	_, err := m.Reply("✔ System prompt reloaded successfully from disk!")
+	if b.modFilter != nil {
+		_ = b.modFilter.Reload()
+	}
+
+	wordCount := 0
+	if b.modFilter != nil {
+		wordCount = b.modFilter.Count()
+	}
+
+	_, err := m.Reply(fmt.Sprintf("✔ System prompt & remote blocklist reloaded! (Active Words: <code>%d</code>)", wordCount))
 	return err
 }

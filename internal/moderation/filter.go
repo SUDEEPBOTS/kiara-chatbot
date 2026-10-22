@@ -16,54 +16,86 @@ import (
 )
 
 type Filter struct {
-	mu         sync.RWMutex
-	words      map[string]struct{}
-	stems      []string
-	sourcePath string
-	sourceURL  string
+	mu            sync.RWMutex
+	words         map[string]struct{}
+	stems         []string
+	sourcePath    string
+	sourceURL     string
+	disabledChats map[int64]bool
 }
 
 func NewFilter(sourcePath string, sourceURL string) *Filter {
 	f := &Filter{
-		words:      make(map[string]struct{}),
-		stems:      make([]string, 0),
-		sourcePath: sourcePath,
-		sourceURL:  sourceURL,
+		words:         make(map[string]struct{}),
+		stems:         make([]string, 0),
+		sourcePath:    sourcePath,
+		sourceURL:     sourceURL,
+		disabledChats: make(map[int64]bool),
 	}
 	f.Load()
 	return f
 }
 
-// Load reads blacklist from local file and optional remote URL
-func (f *Filter) Load() {
+// SetEnabled toggles moderation for a specific chat
+func (f *Filter) SetEnabled(chatID int64, enabled bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if enabled {
+		delete(f.disabledChats, chatID)
+	} else {
+		f.disabledChats[chatID] = true
+	}
+}
+
+// IsEnabled checks if moderation is currently active for this chat
+func (f *Filter) IsEnabled(chatID int64) bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return !f.disabledChats[chatID]
+}
+
+// Reload re-fetches from remote URL (e.g. Yukisbox) and local path
+func (f *Filter) Reload() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	f.words = make(map[string]struct{})
+	f.stems = make([]string, 0)
+
 	// 1. Load from remote URL if configured
 	if f.sourceURL != "" {
-		client := &http.Client{Timeout: 10 * time.Second}
+		client := &http.Client{Timeout: 15 * time.Second}
 		resp, err := client.Get(f.sourceURL)
 		if err == nil && resp.StatusCode == http.StatusOK {
 			defer resp.Body.Close()
 			f.parseFromReader(resp.Body)
-			log.Printf("[INFO] Loaded abuse blocklist from remote URL: %s", f.sourceURL)
+			log.Printf("[INFO] Loaded abuse blocklist from remote URL (%s): %d words", f.sourceURL, len(f.words))
 		} else if err != nil {
-			log.Printf("[WARN] Failed to fetch remote abuse list from %s: %v", f.sourceURL, err)
+			log.Printf("[WARN] Failed to load remote abuse list from %s: %v", f.sourceURL, err)
 		}
 	}
 
 	// 2. Load from local file if exists
 	if f.sourcePath != "" {
-		file, err := os.Open(f.sourcePath)
-		if err == nil {
+		if file, err := os.Open(f.sourcePath); err == nil {
 			defer file.Close()
 			f.parseFromReader(file)
-			log.Printf("[INFO] Loaded abuse blocklist from local file: %s (total: %d words)", f.sourcePath, len(f.words))
-		} else {
-			log.Printf("[INFO] Local abuse file %s not found. Creating empty template.", f.sourcePath)
-			_ = os.WriteFile(f.sourcePath, []byte("# Add one abusive word or phrase per line\n"), 0644)
+			log.Printf("[INFO] Loaded abuse blocklist from local file (%s): %d total words", f.sourcePath, len(f.words))
 		}
 	}
+
+	return nil
+}
+
+// Load calls Reload
+func (f *Filter) Load() {
+	_ = f.Reload()
+}
+
+func (f *Filter) Count() int {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return len(f.words)
 }
 
 func (f *Filter) parseFromReader(r io.Reader) {
@@ -131,26 +163,21 @@ func (f *Filter) NormalizeText(input string) string {
 	text = sb2.String()
 
 	// 3. Strip all non-alphabetic separators (dots, dashes, stars, underscores, spaces)
-	// Example: "f.u.c.k" -> "fuck", "b_h_e_n" -> "bhen"
 	reg := regexp.MustCompile(`[^a-zA-Z\p{Devanagari}\p{Gurmukhi}]`)
 	clean := reg.ReplaceAllString(text, "")
 
-	// 4. Collapse repeating characters (e.g., "fuuuuck" -> "fuck", "saaaale" -> "sale")
+	// 4. Collapse repeating characters
 	return collapseRepeatedRunes(clean)
 }
 
 func unicodeToASCII(r rune) rune {
-	// Mathematical Monospace, Bold, Sans-Serif, Script, Fraktur, etc.
-	// Ranges like U+1D400..U+1D7FF and U+FF01..U+FF5E (Fullwidth)
-	if r >= 0xFF21 && r <= 0xFF3A { // Fullwidth Latin Capital
+	if r >= 0xFF21 && r <= 0xFF3A {
 		return r - 0xFF21 + 'a'
 	}
-	if r >= 0xFF41 && r <= 0xFF5A { // Fullwidth Latin Small
+	if r >= 0xFF41 && r <= 0xFF5A {
 		return r - 0xFF41 + 'a'
 	}
-	// Common Math Alphanumeric Symbols offset mapping
 	if r >= 0x1D400 && r <= 0x1D7CB {
-		// Calculate letter offset within alphabets
 		val := uint32(r)
 		for base := uint32(0x1D400); base <= 0x1D700; base += 52 {
 			if val >= base && val < base+26 {
@@ -215,7 +242,6 @@ func (f *Filter) IsAbusive(text string) (bool, string) {
 			return true, normTok
 		}
 
-		// Fuzzy check for minor typos if token length >= 4
 		if len(normTok) >= 4 {
 			for _, stem := range f.stems {
 				if abs(len(normTok)-len(stem)) <= 1 {
@@ -266,8 +292,8 @@ func levenshteinDistance(s, t string) int {
 
 // ModerateMessage inspects incoming group message and deletes + warns if abusive
 func (f *Filter) ModerateMessage(m *telegram.NewMessage) bool {
-	// Moderation is strictly for group chats
-	if m.IsPrivate() {
+	// Skip private DMs or groups where moderation is toggled OFF
+	if m.IsPrivate() || !f.IsEnabled(m.ChatID()) {
 		return false
 	}
 

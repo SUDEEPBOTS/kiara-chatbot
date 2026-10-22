@@ -12,3 +12,11 @@ kiara
 
 # Local environment file
 .env
+
+# Blocklists & sensitive word lists (protect GitHub repository from TOS bans)
+abouse.txt
+abuse.txt
+blocklist.txt
+words.txt
+*.wordlist
+data/

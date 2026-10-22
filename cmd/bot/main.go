@@ -74,6 +74,8 @@ func main() {
 		client.AddCommandHandler("reload", bh.HandleReload)
 		client.AddCommandHandler("imagine", bh.HandleImagine)
 		client.AddCommandHandler("draw", bh.HandleImagine)
+		client.AddCommandHandler("abuse", bh.HandleAbuse)
+		client.AddCommandHandler("automod", bh.HandleAbuse)
 
 		// Register callback query handler for inline button pagination & settings
 		client.AddCallbackHandler("", bh.HandleCallback)

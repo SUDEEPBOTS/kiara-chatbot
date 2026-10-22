@@ -82,8 +82,9 @@ go build -o kiara cmd/bot/main.go
 | `/model <name>` | Change model directly via text or open inline menu if empty |
 | `/imagine <prompt>` | Generate AI images (`/draw` also works) |
 | `/clear` | Clear chat history & reset memory for your session |
+| `/abuse <on\|off>` | Toggle auto-moderation for the group (Admins only) |
 | `/status` | View active model, thinking depth, active sessions & sticker pool count |
-| `/reload` | Reload `system_prompt.txt` from disk (Admin) |
+| `/reload` | Reload `system_prompt.txt` & remote blocklist from URL (Admin) |
 
 ---
 
