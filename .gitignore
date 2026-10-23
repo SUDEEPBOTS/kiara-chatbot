@@ -5,10 +5,12 @@ kiara
 *.so
 *.dylib
 
-# Telegram session files
+# Telegram session and cache files
 *.session
 *.session-journal
 *.session*
+*.db
+*.db*
 
 # Local environment file
 .env

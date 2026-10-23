@@ -167,18 +167,26 @@ func FormatChatContext(m *telegram.NewMessage, isGroup bool) string {
 	sb.WriteString("\n\n[Runtime Chat & User Context:\n")
 	if isGroup {
 		sb.WriteString("- Chat Type: Group Chat\n")
-		if m.Chat != nil {
-			sb.WriteString(fmt.Sprintf("- Group Name: %s\n", m.Chat.Title))
-			sb.WriteString(fmt.Sprintf("- Group Chat ID: %d\n", m.Chat.ID))
-		} else if m.Channel != nil {
-			sb.WriteString(fmt.Sprintf("- Group Name: %s\n", m.Channel.Title))
-			sb.WriteString(fmt.Sprintf("- Group Chat ID: %d\n", m.Channel.ID))
-			if m.Channel.Username != "" {
-				sb.WriteString(fmt.Sprintf("- Group Username: @%s\n", m.Channel.Username))
-			}
-		} else {
-			sb.WriteString(fmt.Sprintf("- Group Chat ID: %d\n", m.ChatID()))
+
+		groupName := ""
+		if m.Channel != nil && m.Channel.Title != "" {
+			groupName = m.Channel.Title
+		} else if ch, err := m.GetChannel(); err == nil && ch != nil && ch.Title != "" {
+			groupName = ch.Title
 		}
+
+		if groupName == "" {
+			if m.Chat != nil && m.Chat.ID != m.SenderID() && m.Chat.Title != "" {
+				groupName = m.Chat.Title
+			} else if chat, err := m.GetChat(); err == nil && chat != nil && chat.ID != m.SenderID() && chat.Title != "" {
+				groupName = chat.Title
+			}
+		}
+
+		if groupName != "" {
+			sb.WriteString(fmt.Sprintf("- Group Name: %s\n", groupName))
+		}
+		sb.WriteString(fmt.Sprintf("- Group Chat ID: %d\n", m.ChatID()))
 	} else {
 		sb.WriteString("- Chat Type: Direct Message (DM/Private)\n")
 		sb.WriteString(fmt.Sprintf("- Chat ID: %d\n", m.ChatID()))
@@ -197,7 +205,7 @@ func FormatChatContext(m *telegram.NewMessage, isGroup bool) string {
 		sb.WriteString(fmt.Sprintf("- User ID: %d\n", m.SenderID()))
 	}
 
-	sb.WriteString("Instruction: If the user asks about their own name, identity, user ID, or about the group name/details, use this actual data naturally in your response while maintaining your sassy Gen Z persona (do NOT sound like a robot or dump JSON).]\n")
+	sb.WriteString("Instruction: Group Name is the title of the Telegram group chat. User Real Name is the name of the user talking to you. Do NEVER confuse the user name with the group name! If asked about group name, only use Group Name. If asked about user name, only use User Real Name.]\n")
 	return sb.String()
 }
 
